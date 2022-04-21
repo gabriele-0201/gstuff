@@ -4,7 +4,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <iostream>
 
 Display *dis;
 int screen;
@@ -31,13 +30,9 @@ struct Style {
     char* fontName;
     int fontSize;
 
-    int interlineSpace; // px
-
     int winWidth; // Calc after
     int winHeight; // Calc after
-    char** text;
-    int nLines;
-
+    char* text;
 } style;
 
 struct Point {
@@ -48,53 +43,28 @@ void init();
 void close();
 unsigned long RGB(int r, int g, int b);
 //void loadConfig(std::string name);
-XFontStruct* getFont();
+XFontStruct* geFont();
 
-int main(int argc, char **argv) {
-
-    if(argc == 1) {
-        std::cout << "Not specified text" <<std::endl;
-        exit(0);
-    }
+int main() {
 
     // Load Config
     style.background = RGB(0, 0, 0);
     style.borderColor = RGB(255, 0, 0);
-    style.textColor = RGB(255, 255, 255);
+    style.borderColor = RGB(255, 255, 255);
     style.duration = 1000;
     style.padding = 4;
     style.border = 5;
-    style.position = Pos::TOP_LEFT;
+    style.position = TOP_LEFT;
     style.paddingInside = 30;
 
-    style.fontSize = 20;
+    style.fontSize = 15;
     style.fontName = "roboto condensed";
-    style.interlineSpace = 3;
 
-    // Now I have to divide the first argument and all the others
-    
-    // skip at least the namefile
-    style.nLines = argc - 1;
-    int start = 1;
-    if(strlen(argv[1]) > 2 && argv[1][0] == '-' && argv[1][0] == '-') {
-        if(argc == 2) {
-            std::cout << "Not specified text" <<std::endl;
-            exit(0);
-        }
-        style.nLines = argc - 2; 
-        start = 2;
-    }
-        //std::cout << argv[0] << " " <<argv[1] <<std::endl;
-    
-    // create a new array of char* with only the lines
-    char* lines[style.nLines];
-    for(int i = start; i < argc; ++i) 
-        lines[i - start] = argv[i];
-
-    style.text = lines;
+    style.text = "daskdhasjkldhasjldhasljkdhadjasdjkha das jhdljkas hdlkja hsdjklas hdjklh asljkdhajkld hasjkld h";
 
     init();
     XEvent event;
+    char text[255];
 
     while (1)
     {
@@ -108,6 +78,7 @@ int main(int argc, char **argv) {
 
 void init() {
 
+    
     dis=XOpenDisplay((char *)0);
     screen=DefaultScreen(dis);
     
@@ -116,18 +87,8 @@ void init() {
     red=RGB(255,0,0);
     blue=(0,0,255);
 
-    // Load font and calc size window
-    XFontStruct* font = getFont();
-
-    for(int i = 0; i < style.nLines; ++i) {
-        int currentWidth = XTextWidth(font, style.text[i], strlen(style.text[i])) + (2 * style.paddingInside);
-        style.winWidth = style.winWidth < currentWidth ? currentWidth : style.winWidth;
-    }
-
-    // ascent -> pixel up base line
-    // descent -> pixel down base line
-    int heightCharaceter = font -> ascent + font -> descent;
-    style.winHeight =  style.nLines * (heightCharaceter + style.interlineSpace) + (2 * style.paddingInside);
+    // calc dimension of the window
+    //int wWidth = 300, wHeight = 200;
     
     // calc corner near angle
     Screen*  s = DefaultScreenOfDisplay(dis);
@@ -135,24 +96,40 @@ void init() {
     corner.y = ((s -> height) * style.padding) / 100;
 
     switch(style.position) {
-        case Pos::TOP_LEFT: // default
+        case TOP_LEFT: // default
             break;
-        case Pos::TOP_RIGHT:
+        case TOP_RIGHT:
             corner.x = (s -> width) - style.winWidth - corner.x;
             break;
-        case Pos::BOTTOM_LEFT:
+        case BOTTOM_LEFT:
             corner.y = (s -> height) - style.winHeight - corner.y;
             break;
-        case Pos::BOTTOM_RIGHT:
+        case BOTTOM_RIGHT:
             corner.x = (s -> width) - style.winWidth - corner.x;
             corner.y = (s -> height) - style.winHeight - corner.y;
             break;
     }
 
+    // Calc size text
+    //XTextItem text;
+    //text.chars = &strText[0];
+    //text.nchars = strText.length();
+    //text.delta = 1;
+    //text.font = None;
+    
+    XFontStruct* font = geFont();
+
+    style.winWidth = XTextWidth(font, style.text, strlen(style.text)) + (2 * style.paddingInside);
+
+    // ascent -> pixel up base line
+    // descent -> pixel down base line
+    int heightCharaceter = font -> ascent + font -> descent;
+    style.winHeight =  heightCharaceter + (2 * style.paddingInside);
+    
     // Create the window
     win=XCreateSimpleWindow(dis, DefaultRootWindow(dis), corner.x, corner.y, style.winWidth, style.winHeight, style.border ,style.borderColor, style.background);
     
-    XSetStandardProperties(dis, win, "gsfuff", "", None, NULL, 0, NULL);
+    XSetStandardProperties(dis, win, "Howdy", "Hi", None, NULL, 0, NULL);
     XSelectInput(dis, win, ExposureMask | ButtonPressMask | KeyPressMask);
     
     gc=XCreateGC(dis, win, 0,0);
@@ -173,35 +150,26 @@ void init() {
     XMapRaised(dis, win);
     
     // Text on the window
+    //set_up_text();
     XSetFont (dis, gc, font->fid);
-    XSetForeground(dis,gc,style.textColor);
 
-    for(int i = 0; i < style.nLines; ++i) {
-        XDrawString(dis, win, gc, style.paddingInside, style.paddingInside + font -> ascent + (i * (font -> descent + style.interlineSpace + font -> ascent)) , style.text[i], strlen(style.text[i]));
-    }
+    XSetForeground(dis,gc,white);
+    XDrawString(dis, win, gc, style.paddingInside, style.paddingInside + font -> ascent, style.text, strlen(style.text));
 
 }
 
 /* Set up the text font. */
-XFontStruct* getFont()
+XFontStruct* geFont()
 {
     //const char * fontname = "-*-roboto condensed-medium-r-normal--0-0-0-0-p-0-adobe-standard";
-    char fontname[255] = "-*-";
-    //strncat("-*-", style.fontName, "-medium-r-normal--0-", sprintf("" ,style.fontSize * 10) ,"-0-0-p-0-iso10646-1");
-    strcat(fontname, style.fontName);
-    strcat(fontname, "-medium-r-normal--0-");
-    // enough?
-    char converted[10];
-    sprintf(converted, "%d", style.fontSize * 10);
-    strcat(fontname, converted);
-    strcat(fontname,"-0-0-p-0-iso10646-1");
-
+    const char * fontname = strcat("-*-", style.fontName, "-medium-r-normal--0-", asjkdasjkldh ,"-0-0-p-0-iso10646-1");
     XFontStruct * font = XLoadQueryFont (dis, fontname);
     /* If the font could not be loaded, revert to the "fixed" font. */
     if (! font) {
         fprintf (stderr, "unable to load font %s: using fixed\n", fontname);
         font = XLoadQueryFont (dis, "fixed");
     }
+    //XSetFont (dis, gc, font->fid);
 
     return font;
 }
