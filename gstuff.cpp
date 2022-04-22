@@ -462,6 +462,8 @@ bool loadConfig(std::string configName){
 		else if(strSlice_equal(line, "fontName", &keySlice)){
 			style.fontName = (char*)malloc(sizeof(char) * (valSlice.end - valSlice.start + 1));
 			strcpy(style.fontName, line + valSlice.start);
+			if(style.fontName[strlen(style.fontName) - 1] == '\n')
+				style.fontName[strlen(style.fontName) - 1] = 0x0;
 		}
 
 		else{
