@@ -5,6 +5,19 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <iostream>
+#include <string>
+#include <string.h>
+
+#include <unistd.h>
+#include <pwd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <errno.h>
+#include <dirent.h>
+
+
+#define DEBUG
+
 
 Display *dis;
 int screen;
@@ -44,32 +57,33 @@ struct Point {
     int x, y;
 } corner;
 
+struct stringSlice{
+	int start;	// Inclusive
+	int end;	// Not inclusive
+};
+
 void init();
 void close();
 unsigned long RGB(int r, int g, int b);
-//void loadConfig(std::string name);
 XFontStruct* getFont();
+bool loadConfig(std::string configName);
+void loadDefaultConfig();
 
-int main(int argc, char **argv) {
+int main(int argc, char* argv[]) {
 
     if(argc == 1) {
         std::cout << "Not specified text" <<std::endl;
         exit(0);
     }
 
-    // Load Config
-    style.background = RGB(0, 0, 0);
-    style.borderColor = RGB(255, 0, 0);
-    style.textColor = RGB(255, 255, 255);
-    style.duration = 1000;
-    style.padding = 4;
-    style.border = 5;
-    style.position = Pos::TOP_LEFT;
-    style.paddingInside = 30;
+	std::string configName = "config_template";
 
-    style.fontSize = 20;
-    style.fontName = "roboto condensed";
-    style.interlineSpace = 3;
+    // Load Config
+    if(!loadConfig(configName)){
+        loadDefaultConfig();
+    }
+
+	std::cout << style.background << std::endl;
 
     // Now I have to divide the first argument and all the others
     
@@ -217,3 +231,244 @@ unsigned long RGB(int r, int g, int b) {
     return b + (g<<8) + (r<<16);
 }
 
+void loadDefaultConfig(){
+	style.background = RGB(0, 0, 0);
+    style.borderColor = RGB(255, 0, 0);
+    style.textColor = RGB(255, 255, 255);
+    style.duration = 1000;
+    style.padding = 4;
+    style.border = 5;
+    style.position = Pos::TOP_LEFT;
+    style.paddingInside = 30;
+    style.fontSize = 20;
+    style.fontName = "roboto condensed";
+    style.interlineSpace = 3;
+}
+
+
+void getConfigKeySlice(const char* s, stringSlice* keySlice){
+	
+	int index=0;
+
+	// Find first valid charachter of line
+	for(; index<strlen(s); index++){
+		if(s[index] != ' '){
+			keySlice->start = index;
+			break;
+		}
+	}	
+
+	// Scan the rest of the line to find the separator
+	for(; index<strlen(s); index++){
+		if(s[index] == ':'){
+			keySlice->end = index;
+			return;
+		}
+	}
+
+	// Ureachable if there is all we want
+	keySlice->end 	= 0;
+}
+
+
+void getConfigValueSlice(const char* s, stringSlice* valSlice, int startIndex){
+	
+	int index=startIndex;
+
+	// Find first valid charachter of line
+	for(; index<strlen(s); index++){
+		if(s[index] != ' ' && s[index] != ':' && s[index] != '	'){
+			valSlice->start = index;
+			break;
+		}
+	}	
+
+	// Scan the rest of the line to find the separator
+	for(; index<=strlen(s); index++){
+		if(s[index] == ' ' || s[index] == '\n' || s[index] == '\r' || s[index] == 0){
+			valSlice->end = index;
+			return;
+		}
+	}
+
+	// Ureachable if there is all we want
+	valSlice->end 	= 0;
+}
+
+
+bool strSlice_equal(const char* line, const char* s, stringSlice* slice){
+
+	if(slice->end - slice->start != strlen(s))
+		return false;
+
+	int i_s = 0;
+	for(int i_line=slice->start; i_line<slice->end; i_line++){
+		if(line[i_line] != s[i_s++])
+			return false;
+	}
+
+	return true;
+
+}
+
+
+// Returns true if succeded
+bool createDir(const char* base_path, const char* dirname){
+
+	DIR *base_dir;
+	if((base_dir = opendir(base_path)) == NULL){
+		// directory in base_path does not exist
+		#ifdef DEBUG
+			printf("%s does not exist, loading default config", base_path);
+		#endif
+		return false;
+	}
+
+	int dfd = dirfd(base_dir);
+	errno = 0;
+	int ret = mkdirat(dfd, dirname, S_IRWXU);
+	if (ret == -1) {
+		switch (errno) {
+			case EACCES :
+				#ifdef DEBUG
+					printf("Failed creating %s directory, loading default config", dirname);
+				#endif
+				return false;
+			case EEXIST:
+				// direcory already exists
+			break;
+			case ENAMETOOLONG:
+				printf("Pathname is too long, loading default config");
+				return false;
+			default:
+				#ifdef DEBUG
+					perror("mkdir");
+				#endif
+				return false;
+		}
+
+	}
+	closedir(base_dir);
+
+	return true;
+}
+
+// Returns true if succeded
+bool loadConfig(std::string configName){
+
+	configName += ".conf";
+
+	// Get .config/ directory path of user that is launching the script
+	std::string configDir_path = getpwuid(getuid())->pw_dir +  std::string("/.config");
+
+	if(!createDir(configDir_path.c_str(), "gstuff"))
+		return false;
+	
+	configDir_path += "/gstuff/";
+
+	std::string configFile_path = configDir_path + configName;
+
+	FILE *config_file;
+
+	config_file = fopen(configFile_path.c_str(), "r");
+
+	if(config_file == NULL){
+		#ifdef DEBUG
+			printf("Error opening config file, loading default");
+		#endif
+		return false;
+	}
+
+	char* line = NULL;
+	size_t len = 0;
+	ssize_t linelenght;
+	int lineindex = 0;
+	
+
+	while( (linelenght = getline(&line, &len, config_file)) != -1){
+
+		lineindex++;
+
+		// Skip void lines
+		if(strcmp(line, "\n") == 0 || strlen(line) == 0)
+			continue;
+
+		stringSlice keySlice;
+		getConfigKeySlice(line, &keySlice);
+
+		stringSlice valSlice;
+		getConfigValueSlice(line, &valSlice, keySlice.end);
+
+		if(keySlice.end == 0 || valSlice.end == 0){
+			#ifdef DEBUG
+				printf("Line %d has an invalid syntax, skipping\n", lineindex);
+			#endif
+
+			continue;
+		}
+
+		if(strSlice_equal(line, "position", &keySlice)){
+
+			if(strSlice_equal(line, "TOP_LEFT", &valSlice))
+				style.position = TOP_LEFT;
+			
+			else if(strSlice_equal(line, "TOP_RIGHT", &valSlice))
+				style.position = TOP_RIGHT;
+			
+			else if(strSlice_equal(line, "BOTTOM_LEFT", &valSlice))
+				style.position = BOTTOM_LEFT;
+			
+			else if(strSlice_equal(line, "BOTTOM_RIGHT", &valSlice))
+				style.position = BOTTOM_RIGHT;
+
+			else{
+				#ifdef DEBUG
+					printf("Invalid option for position, skipping\n");
+				#endif
+			}
+		}
+
+		else if(strSlice_equal(line, "background", &keySlice))
+			style.background = strtol(line + valSlice.start + 1, NULL, 16);
+
+		else if(strSlice_equal(line, "borderColor", &keySlice))
+			style.borderColor = strtol(line + valSlice.start + 1, NULL, 16);
+		
+		else if(strSlice_equal(line, "textColor", &keySlice))
+			style.textColor = strtol(line + valSlice.start + 1, NULL, 16);
+		
+		else if(strSlice_equal(line, "duration", &keySlice))
+			style.duration = strtol(line + valSlice.start, NULL, 0);
+		
+		else if(strSlice_equal(line, "padding", &keySlice))
+			style.padding = strtol(line + valSlice.start, NULL, 0);
+		
+		else if(strSlice_equal(line, "paddingInside", &keySlice))
+			style.paddingInside = strtol(line + valSlice.start, NULL, 0);
+		
+		else if(strSlice_equal(line, "border", &keySlice))
+			style.border = strtol(line + valSlice.start, NULL, 0);
+
+		else if(strSlice_equal(line, "interlineSpace", &keySlice))
+			style.interlineSpace = strtol(line + valSlice.start, NULL, 0);
+		
+		else if(strSlice_equal(line, "fontSize", &keySlice))
+			style.fontSize = strtol(line + valSlice.start, NULL, 0);
+
+		else if(strSlice_equal(line, "fontName", &keySlice)){
+			style.fontName = (char*)malloc(sizeof(char) * (valSlice.end - valSlice.start + 1));
+			strcpy(style.fontName, line + valSlice.start);
+		}
+
+		else{
+			#ifdef DEBUG
+				printf("Option at line %d not recognised, skipping\n", lineindex);
+			#endif
+		}
+
+	}
+
+	fclose(config_file);
+
+	return true;
+}
