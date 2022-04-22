@@ -76,7 +76,7 @@ int main(int argc, char* argv[]) {
         exit(0);
     }
 
-    // Now I have to divide the first argument and all the others
+    //Now I have to divide the first argument and all the others
 	std::string configName = "config_template";
     
     // skip at least the namefile
@@ -245,7 +245,7 @@ void loadDefaultConfig(){
     style.position = Pos::TOP_LEFT;
     style.paddingInside = 30;
     style.fontSize = 20;
-    style.fontName = "roboto condensed";
+    style.fontName = "arial black";
     style.interlineSpace = 3;
 }
 
@@ -287,9 +287,9 @@ void getConfigValueSlice(const char* s, stringSlice* valSlice, int startIndex){
 		}
 	}	
 
-	// Scan the rest of the line to find the separator
+	// Scan the rest of the line to find the end
 	for(; index<=strlen(s); index++){
-		if(s[index] == ' ' || s[index] == '\n' || s[index] == '\r' || s[index] == 0){
+		if(s[index] == ' ' || s[index] == '\n' || s[index] == '\r' || s[index] == 0x0){
 			valSlice->end = index;
 			return;
 		}
@@ -357,6 +357,15 @@ bool createDir(const char* base_path, const char* dirname){
 	return true;
 }
 
+void checkAndSet(int* prop, const char* propName, int defaultValue, const char* startPtr, const char* endPtr){
+	if(startPtr == endPtr || errno != 0){
+		*prop = defaultValue;
+		#ifdef DEBUG
+			printf("Invalid option for %s, loading default\n", propName);
+		#endif
+	}
+}
+
 // Returns true if succeded
 bool loadConfig(std::string configName){
 
@@ -403,6 +412,9 @@ bool loadConfig(std::string configName){
 		stringSlice valSlice;
 		getConfigValueSlice(line, &valSlice, keySlice.end);
 
+		char* endptr = NULL;
+		errno = 0;
+
 		if(keySlice.end == 0 || valSlice.end == 0){
 			#ifdef DEBUG
 				printf("Line %d has an invalid syntax, skipping\n", lineindex);
@@ -429,35 +441,46 @@ bool loadConfig(std::string configName){
 				#ifdef DEBUG
 					printf("Invalid option for position, skipping\n");
 				#endif
+				style.position = Pos::TOP_LEFT;
 			}
 		}
 
-		else if(strSlice_equal(line, "background", &keySlice))
-			style.background = strtol(line + valSlice.start + 1, NULL, 16);
-
-		else if(strSlice_equal(line, "borderColor", &keySlice))
-			style.borderColor = strtol(line + valSlice.start + 1, NULL, 16);
-		
-		else if(strSlice_equal(line, "textColor", &keySlice))
-			style.textColor = strtol(line + valSlice.start + 1, NULL, 16);
-		
-		else if(strSlice_equal(line, "duration", &keySlice))
-			style.duration = strtol(line + valSlice.start, NULL, 0);
-		
-		else if(strSlice_equal(line, "padding", &keySlice))
-			style.padding = strtol(line + valSlice.start, NULL, 0);
-		
-		else if(strSlice_equal(line, "paddingInside", &keySlice))
-			style.paddingInside = strtol(line + valSlice.start, NULL, 0);
-		
-		else if(strSlice_equal(line, "border", &keySlice))
-			style.border = strtol(line + valSlice.start, NULL, 0);
-
-		else if(strSlice_equal(line, "interlineSpace", &keySlice))
-			style.interlineSpace = strtol(line + valSlice.start, NULL, 0);
-		
-		else if(strSlice_equal(line, "fontSize", &keySlice))
-			style.fontSize = strtol(line + valSlice.start, NULL, 0);
+		else if(strSlice_equal(line, "background", &keySlice)){
+			style.background = strtol(line + valSlice.start + 1, &endptr, 16);
+			checkAndSet(&style.background, "background", RGB(0, 0, 0), line + valSlice.start + 1, endptr);
+		}
+		else if(strSlice_equal(line, "borderColor", &keySlice)){
+			style.borderColor = strtol(line + valSlice.start + 1, &endptr, 16);
+			checkAndSet(&style.borderColor, "borderColor", RGB(255, 0, 0), line + valSlice.start + 1, endptr);
+		}
+		else if(strSlice_equal(line, "textColor", &keySlice)){
+			style.textColor = strtol(line + valSlice.start + 1, &endptr, 16);
+			checkAndSet(&style.textColor, "textColor", RGB(255, 255, 255), line + valSlice.start + 1, endptr);
+		}
+		else if(strSlice_equal(line, "duration", &keySlice)){
+			style.duration = strtol(line + valSlice.start, &endptr, 0);
+			checkAndSet(&style.duration, "duration", 1000, line + valSlice.start, endptr);
+		}
+		else if(strSlice_equal(line, "padding", &keySlice)){
+			style.padding = strtol(line + valSlice.start, &endptr, 0);
+			checkAndSet(&style.padding, "padding", 4, line + valSlice.start, endptr);
+		}
+		else if(strSlice_equal(line, "paddingInside", &keySlice)){
+			style.paddingInside = strtol(line + valSlice.start, &endptr, 0);
+			checkAndSet(&style.paddingInside, "paddingInside", 30, line + valSlice.start, endptr);
+		}
+		else if(strSlice_equal(line, "border", &keySlice)){
+			style.border = strtol(line + valSlice.start, &endptr, 0);
+			checkAndSet(&style.border, "border", 5, line + valSlice.start, endptr);
+		}
+		else if(strSlice_equal(line, "interlineSpace", &keySlice)){
+			style.interlineSpace = strtol(line + valSlice.start, &endptr, 0);
+			checkAndSet(&style.interlineSpace, "interlineSpace", 3, line + valSlice.start, endptr);
+		}
+		else if(strSlice_equal(line, "fontSize", &keySlice)){
+			style.fontSize = strtol(line + valSlice.start, &endptr, 0);
+			checkAndSet(&style.fontSize, "fontSize", 20, line + valSlice.start, endptr);
+		}
 
 		else if(strSlice_equal(line, "fontName", &keySlice)){
 			style.fontName = (char*)malloc(sizeof(char) * (valSlice.end - valSlice.start + 1));
