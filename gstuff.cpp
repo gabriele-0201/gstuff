@@ -76,16 +76,8 @@ int main(int argc, char* argv[]) {
         exit(0);
     }
 
-	std::string configName = "config_template";
-
-    // Load Config
-    if(!loadConfig(configName)){
-        loadDefaultConfig();
-    }
-
-	std::cout << style.background << std::endl;
-
     // Now I have to divide the first argument and all the others
+	std::string configName = "config_template";
     
     // skip at least the namefile
     style.nLines = argc - 1;
@@ -97,6 +89,9 @@ int main(int argc, char* argv[]) {
         }
         style.nLines = argc - 2; 
         start = 2;
+
+        //configName = argv[1].substr(2, strlen(argv[1]) - 2);
+        memcpy(&configName[0], &argv[1][2], strlen(argv[1]) - 2);
     }
         //std::cout << argv[0] << " " <<argv[1] <<std::endl;
     
@@ -106,6 +101,15 @@ int main(int argc, char* argv[]) {
         lines[i - start] = argv[i];
 
     style.text = lines;
+
+    // Load Config
+    std::cout  << configName <<std::endl;
+    if(!loadConfig(configName)){
+        loadDefaultConfig();
+    }
+
+	std::cout << style.background << std::endl;
+
 
     init();
     XEvent event;
