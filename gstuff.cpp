@@ -12,6 +12,7 @@
 #include <pwd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <errno.h>
 #include <dirent.h>
 
@@ -91,9 +92,9 @@ int main(int argc, char* argv[]) {
         start = 2;
 
         //configName = argv[1].substr(2, strlen(argv[1]) - 2);
-        memcpy(&configName[0], &argv[1][2], strlen(argv[1]) - 2);
+        //memcpy(&configName[0], &argv[1][2], strlen(argv[1]) - 2);
+        configName = std::string(argv[1]).substr(2);
     }
-        //std::cout << argv[0] << " " <<argv[1] <<std::endl;
     
     // create a new array of char* with only the lines
     char* lines[style.nLines];
@@ -103,23 +104,35 @@ int main(int argc, char* argv[]) {
     style.text = lines;
 
     // Load Config
-    std::cout  << configName <<std::endl;
+    std::cout  << "Config Name File: " << configName <<std::endl;
     if(!loadConfig(configName)){
         loadDefaultConfig();
     }
 
-	std::cout << style.background << std::endl;
-
-
     init();
     XEvent event;
 
-    while (1)
-    {
-        XNextEvent(dis, &event);
+    XFlush(dis);
+
+    struct timeval current;
+    struct timeval init;
+    gettimeofday(&current, NULL);
+    gettimeofday(&init, NULL);
+    long microDur = style.duration * 1000, passed;
+
+    do {
+        usleep(100000); // 100 ms
+        gettimeofday(&current, NULL);
+        passed = (long)((current.tv_sec - init.tv_sec) * 1000000 + current.tv_usec - init.tv_usec);
+
+        std::cout << passed <<std::endl;
+    
+        while(XPending(dis))
+            XNextEvent(dis, &event);
+
         if(event.type==ButtonPress) 
             close();
-    }
+    } while(passed < microDur);
     
     return 0;
 }
@@ -136,6 +149,8 @@ void init() {
 
     // Load font and calc size window
     XFontStruct* font = getFont();
+
+    int borderDim = style.border * 2;
 
     for(int i = 0; i < style.nLines; ++i) {
         int currentWidth = XTextWidth(font, style.text[i], strlen(style.text[i])) + (2 * style.paddingInside);
@@ -156,14 +171,14 @@ void init() {
         case Pos::TOP_LEFT: // default
             break;
         case Pos::TOP_RIGHT:
-            corner.x = (s -> width) - style.winWidth - corner.x;
+            corner.x = (s -> width) - style.winWidth - borderDim - corner.x;
             break;
         case Pos::BOTTOM_LEFT:
-            corner.y = (s -> height) - style.winHeight - corner.y;
+            corner.y = (s -> height) - style.winHeight - borderDim - corner.y;
             break;
         case Pos::BOTTOM_RIGHT:
-            corner.x = (s -> width) - style.winWidth - corner.x;
-            corner.y = (s -> height) - style.winHeight - corner.y;
+            corner.x = (s -> width) - style.winWidth - borderDim - corner.x;
+            corner.y = (s -> height) - style.winHeight - borderDim - corner.y;
             break;
     }
 
@@ -374,12 +389,15 @@ bool loadConfig(std::string configName){
 	// Get .config/ directory path of user that is launching the script
 	std::string configDir_path = getpwuid(getuid())->pw_dir +  std::string("/.config");
 
+
 	if(!createDir(configDir_path.c_str(), "gstuff"))
 		return false;
 	
 	configDir_path += "/gstuff/";
 
 	std::string configFile_path = configDir_path + configName;
+
+    std::cout << "Namefile with path "<< configFile_path <<std::endl;
 
 	FILE *config_file;
 
