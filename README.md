@@ -155,12 +155,12 @@ Distributed under the MIT License. See `LICENSE.txt` for more information.
 
 <!-- MARKDOWN LINKS & IMAGES -->
 <!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
-[contributors-shield]: https://img.shields.io/github/contributors/othneildrew/Best-README-Template.svg?style=for-the-badge
-[forks-shield]: https://img.shields.io/github/forks/othneildrew/Best-README-Template.svg?style=for-the-badge
-[stars-shield]: https://img.shields.io/github/stars/othneildrew/Best-README-Template.svg?style=for-the-badge
-[issues-shield]: https://img.shields.io/github/issues/othneildrew/Best-README-Template.svg?style=for-the-badge
-[license-shield]: https://img.shields.io/github/license/othneildrew/Best-README-Template.svg?style=for-the-badge
-[license-url]: https://github.com/othneildrew/Best-README-Template/blob/master/LICENSE.txt
+[contributors-shield]: https://img.shields.io/github/contributors.svg?style=for-the-badge
+[forks-shield]: https://img.shields.io/github/forks.svg?style=for-the-badge
+[stars-shield]: https://img.shields.io/github/stars/gabriele-0201/gstuff?style=for-the-badge
+[issues-shield]: https://img.shields.io/github/issues/gabriele-0201/gstuff/style=for-the-badge
+[license-shield]: https://img.shields.io/github/license/gabriele-0201/gstuff.svg?style=for-the-badge
+[license-url]: https://github.com/gabriele-0201/gstuff/blob/master/LICENSE.txt
 [contributors-url]: https://github.com/gabriele-0201/gstuff/contributors
 [forks-url]: https://github.com/gabriele-0201/gstuff/network/members
 [stars-url]: https://github.com/gabriele-0201/gstuff/stargazers
