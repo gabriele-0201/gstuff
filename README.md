@@ -14,14 +14,14 @@
   <h3 align="center">Welcome to gstuff!</h3>
 
   <p align="center">
-    <a href="https://github.com/othneildrew/Best-README-Template"><strong>Explore the docs »</strong></a>
+    <a href="https://github.com/gabriele-0201/gstuff/"><strong>Explore the docs »</strong></a>
     <br />
     <br />
-    <a href="https://github.com/othneildrew/Best-README-Template">View Demo</a>
+    <a href="https://github.com/gabriele-0201/gstuff/">View Demo</a>
     ·
-    <a href="https://github.com/othneildrew/Best-README-Template/issues">Report Bug</a>
+    <a href="https://github.com/gabriele-0201/gstuff/issues">Report Bug</a>
     ·
-    <a href="https://github.com/othneildrew/Best-README-Template/issues">Request Feature</a>
+    <a href="https://github.com/gabriele-0201/gstuff/issues">Request Feature</a>
   </p>
 </div>
 
@@ -56,20 +56,16 @@
 <!-- ABOUT THE PROJECT -->
 ## About The Project
 
-[![Product Name Screen Shot][product-screenshot]]
+<!-- [![Product Name Screen Shot][product-screenshot]] -->
 
 Gstuff is a very lightweight and deamon-less notification program built with X11 libraries that can show a box with customizable text in it.
 
-
-<p align="right">(<a href="#top">back to top</a>)</p>
 
 
 
 ### Built With
 
 * [X11](https://github.com/freedesktop/xorg-libX11)
-
-<p align="right">(<a href="#top">back to top</a>)</p>
 
 
 
@@ -120,8 +116,6 @@ Some use cases for it may be:
 
 <!-- TODO: add some examples in an example directory and add images here -->
 
-<p align="right">(<a href="#top">back to top</a>)</p>
-
 
 
 <!-- ROADMAP -->
@@ -133,8 +127,6 @@ Some use cases for it may be:
 - [ ] Add svg support
 
 See the [open issues](https://github.com/othneildrew/Best-README-Template/issues) for a full list of proposed features (and known issues).
-
-<p align="right">(<a href="#top">back to top</a>)</p>
 
 
 
@@ -158,8 +150,6 @@ Don't forget to give the project a star! Thanks again!
 ## License
 
 Distributed under the MIT License. See `LICENSE.txt` for more information.
-
-<p align="right">(<a href="#top">back to top</a>)</p>
 
 
 
