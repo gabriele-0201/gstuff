@@ -125,7 +125,7 @@ int main(int argc, char* argv[]) {
         gettimeofday(&current, NULL);
         passed = (long)((current.tv_sec - init.tv_sec) * 1000000 + current.tv_usec - init.tv_usec);
 
-        std::cout << passed <<std::endl;
+        //std::cout << passed <<std::endl;
     
         while(XPending(dis))
             XNextEvent(dis, &event);
