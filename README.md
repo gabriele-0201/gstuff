@@ -121,7 +121,7 @@ Or you can specify a configuration following this steps:
   mv /home/$USER/.config/gstuff/config_template.conf /home/$USER/.config/gstuff/<myConfig>.conf
   ```
 - Edit the configration accordingly to your needs
-  - Note: the fonts can be listed with ```sh xlsfonts```
+  - Note: the fonts can be listed with `xlsfonts`
 - Run gstuff specifying the **configuration name** (not file):
   ```sh
   gstuff --<myConfig> "your text here" "this text goes to the 2nd line" "this text goes to the 3rd line"
