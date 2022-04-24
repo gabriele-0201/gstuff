@@ -165,3 +165,7 @@ Distributed under the MIT License. See `LICENSE.txt` for more information.
 [issues-url]: https://github.com/othneildrew/Best-README-Template/issues
 [license-shield]: https://img.shields.io/github/license/othneildrew/Best-README-Template.svg?style=for-the-badge
 [license-url]: https://github.com/othneildrew/Best-README-Template/blob/master/LICENSE.txt
+[contributors-url]: https://github.com/othneildrew/Best-README-Template/graphs/contributors
+[forks-url]: https://github.com/gabriele-0201/gstuff/network/members
+[stars-url]: https://github.com/gabriele-0201/gstuff/stargazers
+[issues-url]: https://github.com/gabriele-0201/gstuff/issues
