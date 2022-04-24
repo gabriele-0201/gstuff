@@ -126,7 +126,7 @@ Some use cases for it may be:
 - [ ] Add some examples
 - [ ] Add svg support
 
-See the [open issues](https://github.com/othneildrew/Best-README-Template/issues) for a full list of proposed features (and known issues).
+See the [open issues](https://github.com/gabriele-0201/gstuff/issues) for a full list of proposed features (and known issues).
 
 
 
