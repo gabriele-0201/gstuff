@@ -83,7 +83,7 @@ To compile gstuff from source you should have **cmake** and **make** installed.
    git clone https://github.com/gabriele-0201/gstuff.git
    ```
 2. Open it in a terminal
-3. Create a buld/ directory
+3. Create a `buld/` directory
     ```sh
    mkdir ./build 
    ```
@@ -96,7 +96,7 @@ To compile gstuff from source you should have **cmake** and **make** installed.
    make -C ./build
    ```
 
-Now your executable program sohould be at ./build/gstuff and you can run a test by executing
+Now your executable program sohould be at `./build/gstuff` and you can run a test by executing
 ```sh
 ./build/gstuff "hello world"
 ```
@@ -108,7 +108,26 @@ Now your executable program sohould be at ./build/gstuff and you can run a test 
 <!-- USAGE EXAMPLES -->
 ## Usage
 
-Some use cases for it may be:
+You can run the program with the default config just by using
+```sh
+gstuff "your text here" "this text goes to the 2nd line" "this text goes to the 3rd line"
+```
+
+Or you can specify a configuration following this steps:
+- Copy `config_template.conf` into `/home/$USER/.config/gstuff` and rename it as you wish, we will call it `<myConfig>.conf`
+  ```sh
+  mkdir /home/$USER/.config/gstuff
+  cp ./config_template.conf /home/$USER/.config/gstuff
+  mv /home/$USER/.config/gstuff/config_template.conf /home/$USER/.config/gstuff/<myConfig>.conf
+  ```
+- Edit the configration accordingly to your needs
+  - Note: the fonts can be listed with ```sh xlsfonts```
+- Run gstuff specifying the **configuration name** (not file):
+  ```sh
+  gstuff --<myConfig> "your text here" "this text goes to the 2nd line" "this text goes to the 3rd line"
+  ```
+
+Here are some example usecases:
 - Getting status of your system with a keybinding
 - Having a customizable slider for display backlight and/or volume
 - Integrating notification capabilities in your own project
