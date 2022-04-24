@@ -1,6 +1,7 @@
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/Xos.h>
+#include <X11/extensions/Xrandr.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,18 +20,12 @@
 
 #define DEBUG
 
-
-Display *dis;
-int screen;
-Window win;
-GC gc;
-unsigned long black, white, red, blue;
-
 enum Pos {
     TOP_LEFT,
     TOP_RIGHT,
     BOTTOM_LEFT,
-    BOTTOM_RIGHT
+    BOTTOM_RIGHT,
+    CENTER // TODO
 };
 
 struct Style {
@@ -67,8 +62,16 @@ void init();
 void close();
 unsigned long RGB(int r, int g, int b);
 XFontStruct* getFont();
+void calcWindowDimension(XFontStruct* font);
+void calcCornerPosition();
 bool loadConfig(std::string configName);
 void loadDefaultConfig();
+
+Display *dis;
+int screen;
+Window win;
+GC gc;
+
 
 int main(int argc, char* argv[]) {
 
@@ -77,10 +80,10 @@ int main(int argc, char* argv[]) {
         exit(0);
     }
 
-    //Now I have to divide the first argument and all the others
+    // Default config name
 	std::string configName = "config_template";
     
-    // skip at least the namefile
+    // Skip at least the name of the executable
     style.nLines = argc - 1;
     int start = 1;
     if(strlen(argv[1]) > 2 && argv[1][0] == '-' && argv[1][0] == '-') {
@@ -91,8 +94,7 @@ int main(int argc, char* argv[]) {
         style.nLines = argc - 2; 
         start = 2;
 
-        //configName = argv[1].substr(2, strlen(argv[1]) - 2);
-        //memcpy(&configName[0], &argv[1][2], strlen(argv[1]) - 2);
+        // Get the passed configName, remove the first two characters
         configName = std::string(argv[1]).substr(2);
     }
     
@@ -100,32 +102,30 @@ int main(int argc, char* argv[]) {
     char* lines[style.nLines];
     for(int i = start; i < argc; ++i) 
         lines[i - start] = argv[i];
-
     style.text = lines;
 
     // Load Config
-    std::cout  << "Config Name File: " << configName <<std::endl;
     if(!loadConfig(configName)){
         loadDefaultConfig();
     }
 
+    // Init the window
     init();
+    // Event Handler
     XEvent event;
 
     XFlush(dis);
 
-    struct timeval current;
-    struct timeval init;
-    gettimeofday(&current, NULL);
-    gettimeofday(&init, NULL);
+    // Manage Duration
+    struct timeval currentTime;
+    struct timeval initTime;
+    gettimeofday(&initTime, NULL);
     long microDur = style.duration * 1000, passed;
 
     do {
         usleep(100000); // 100 ms
-        gettimeofday(&current, NULL);
-        passed = (long)((current.tv_sec - init.tv_sec) * 1000000 + current.tv_usec - init.tv_usec);
-
-        //std::cout << passed <<std::endl;
+        gettimeofday(&currentTime, NULL);
+        passed = (long)((currentTime.tv_sec - initTime.tv_sec) * 1000000 + currentTime.tv_usec - initTime.tv_usec);
     
         while(XPending(dis))
             XNextEvent(dis, &event);
@@ -139,48 +139,18 @@ int main(int argc, char* argv[]) {
 
 void init() {
 
+    // TODO - select the right display to show the window, for now always the primary
     dis=XOpenDisplay((char *)0);
     screen=DefaultScreen(dis);
-    
-    black=BlackPixel(dis, screen);
-    white=WhitePixel(dis, screen);
-    red=RGB(255,0,0);
-    blue=(0,0,255);
 
-    // Load font and calc size window
+    // Load font
     XFontStruct* font = getFont();
 
-    int borderDim = style.border * 2;
-
-    for(int i = 0; i < style.nLines; ++i) {
-        int currentWidth = XTextWidth(font, style.text[i], strlen(style.text[i])) + (2 * style.paddingInside);
-        style.winWidth = style.winWidth < currentWidth ? currentWidth : style.winWidth;
-    }
-
-    // ascent -> pixel up base line
-    // descent -> pixel down base line
-    int heightCharaceter = font -> ascent + font -> descent;
-    style.winHeight =  style.nLines * (heightCharaceter + style.interlineSpace) + (2 * style.paddingInside);
+    // Calc Window Size 
+    calcWindowDimension(font);
     
-    // calc corner near angle
-    Screen*  s = DefaultScreenOfDisplay(dis);
-    corner.x = ((s -> width) * style.padding) / 100; // x : width = padding : 100
-    corner.y = ((s -> height) * style.padding) / 100;
-
-    switch(style.position) {
-        case Pos::TOP_LEFT: // default
-            break;
-        case Pos::TOP_RIGHT:
-            corner.x = (s -> width) - style.winWidth - borderDim - corner.x;
-            break;
-        case Pos::BOTTOM_LEFT:
-            corner.y = (s -> height) - style.winHeight - borderDim - corner.y;
-            break;
-        case Pos::BOTTOM_RIGHT:
-            corner.x = (s -> width) - style.winWidth - borderDim - corner.x;
-            corner.y = (s -> height) - style.winHeight - borderDim - corner.y;
-            break;
-    }
+    // Calc Corner Position
+    calcCornerPosition();
 
     // Create the window
     win=XCreateSimpleWindow(dis, DefaultRootWindow(dis), corner.x, corner.y, style.winWidth, style.winHeight, style.border ,style.borderColor, style.background);
@@ -189,9 +159,6 @@ void init() {
     XSelectInput(dis, win, ExposureMask | ButtonPressMask | KeyPressMask);
     
     gc=XCreateGC(dis, win, 0,0);
-    
-    XSetBackground(dis,gc,white);
-    XSetForeground(dis,gc,black);
 
     // Set non managed window
     XSetWindowAttributes set_attr;
@@ -201,36 +168,36 @@ void init() {
     // Map the window on screen
     XMapWindow(dis, win);
     
-    // on top
+    // Display the window on top of any other
     XClearWindow(dis, win);
     XMapRaised(dis, win);
     
-    // Text on the window
+    // Set Font and Color
     XSetFont (dis, gc, font->fid);
     XSetForeground(dis,gc,style.textColor);
 
+    // Print the lines
     for(int i = 0; i < style.nLines; ++i) {
         XDrawString(dis, win, gc, style.paddingInside, style.paddingInside + font -> ascent + (i * (font -> descent + style.interlineSpace + font -> ascent)) , style.text[i], strlen(style.text[i]));
     }
 
 }
 
-/* Set up the text font. */
+/* 
+ * Set up the text font
+ * */
 XFontStruct* getFont()
 {
-    //const char * fontname = "-*-roboto condensed-medium-r-normal--0-0-0-0-p-0-adobe-standard";
     char fontname[255] = "-*-";
-    //strncat("-*-", style.fontName, "-medium-r-normal--0-", sprintf("" ,style.fontSize * 10) ,"-0-0-p-0-iso10646-1");
     strcat(fontname, style.fontName);
     strcat(fontname, "-medium-r-normal--0-");
-    // enough?
     char converted[10];
     sprintf(converted, "%d", style.fontSize * 10);
     strcat(fontname, converted);
     strcat(fontname,"-0-0-p-0-iso10646-1");
 
     XFontStruct * font = XLoadQueryFont (dis, fontname);
-    /* If the font could not be loaded, revert to the "fixed" font. */
+    // If the font could not be loaded, revert to the "fixed" font
     if (! font) {
         fprintf (stderr, "unable to load font %s: using fixed\n", fontname);
         font = XLoadQueryFont (dis, "fixed");
@@ -239,6 +206,69 @@ XFontStruct* getFont()
     return font;
 }
 
+/*
+ * Dependig on the text and the font size calc the dimension of the window
+ * Always the minimum possible
+ * */
+void calcWindowDimension(XFontStruct* font) {
+
+    // Check each line to calc the max width
+    for(int i = 0; i < style.nLines; ++i) {
+        int currentWidth = XTextWidth(font, style.text[i], strlen(style.text[i])) + (2 * style.paddingInside);
+        style.winWidth = style.winWidth < currentWidth ? currentWidth : style.winWidth;
+    }
+
+    // ascent -> pixel up base line
+    // descent -> pixel down base line
+    int heightCharaceter = font -> ascent + font -> descent;
+    style.winHeight =  style.nLines * (heightCharaceter + style.interlineSpace) + (2 * style.paddingInside);
+}
+
+/*
+ * Based on the position specified and the window dimension calculate the position 
+ * of the corner to display the window in the right place
+ * */
+void calcCornerPosition() {
+
+    // calc top left corner position
+    int borderDim = style.border * 2;
+
+    XRRScreenResources *screens = XRRGetScreenResources(dis, DefaultRootWindow(dis));
+    XRRCrtcInfo *info = NULL;
+
+    // TODO - Understand witch monitor use
+    info = XRRGetCrtcInfo(dis, screens, screens->crtcs[0]);
+    int width = info->width;
+    int height = info->height;
+    XRRFreeScreenResources(screens);
+
+    corner.x = (width * style.padding) / 100; // x : width = padding : 100
+    corner.y = (height * style.padding) / 100;
+
+    switch(style.position) {
+        case Pos::TOP_LEFT: // default
+            break;
+        case Pos::TOP_RIGHT:
+            corner.x = (width) - style.winWidth - borderDim - corner.x;
+            break;
+        case Pos::BOTTOM_LEFT:
+            corner.y = (height) - style.winHeight - borderDim - corner.y;
+            break;
+        case Pos::BOTTOM_RIGHT:
+            corner.x = (width) - style.winWidth - borderDim - corner.x;
+            corner.y = (height) - style.winHeight - borderDim - corner.y;
+            break;
+        case Pos::CENTER:
+            corner.x = ((width) / 2) - ((style.winWidth - borderDim) / 2) ;
+            corner.y = ((height) / 2)  - ((style.winHeight - borderDim) / 2);
+            break;
+    }
+
+}
+
+/* 
+ * Close the window
+ * */
 void close() {
     XFreeGC(dis, gc);
     XDestroyWindow(dis, win);
@@ -397,8 +427,6 @@ bool loadConfig(std::string configName){
 
 	std::string configFile_path = configDir_path + configName;
 
-    std::cout << "Namefile with path "<< configFile_path <<std::endl;
-
 	FILE *config_file;
 
 	config_file = fopen(configFile_path.c_str(), "r");
@@ -454,6 +482,9 @@ bool loadConfig(std::string configName){
 			
 			else if(strSlice_equal(line, "BOTTOM_RIGHT", &valSlice))
 				style.position = BOTTOM_RIGHT;
+
+			else if(strSlice_equal(line, "CENTER", &valSlice))
+				style.position = CENTER;
 
 			else{
 				#ifdef DEBUG
