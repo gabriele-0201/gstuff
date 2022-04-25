@@ -17,9 +17,21 @@
 #include <errno.h>
 #include <dirent.h>
 
-
+// Uncomment next line to have debug messages printed to stdout
 #define DEBUG
 
+
+// Function declarations
+void init();
+void close();
+unsigned long RGB(int r, int g, int b);
+XFontStruct* getFont();
+void calcWindowDimension(XFontStruct* font);
+void calcCornerPosition();
+bool loadConfig(const std::string& configName);
+
+
+// Enums and structs
 enum Pos {
     TOP_LEFT,
     TOP_RIGHT,
@@ -29,21 +41,25 @@ enum Pos {
 };
 
 struct Style {
-    int background, borderColor, textColor;
-    int duration; // milliseconds
-    int padding; // %
-    int border; // px
-    Pos position;
+    int background= 	RGB(51, 51, 0);
+	int borderColor= 	RGB(255, 255, 102);
+	int textColor=	 	RGB(255, 255, 255);
 
-    int paddingInside; // px
+    int duration= 		2000; //milliseconds
+    int padding= 		4; //%
+    int paddingInside=	15; //px
+    int border= 		5; //px
+    int interlineSpace=	3; //px
 
-    char* fontName;
-    int fontSize;
+    Pos position= 		Pos::BOTTOM_RIGHT;
 
-    int interlineSpace; // px
+    char* fontName= 	strdup("arial black");
+    int fontSize= 		25;
 
-    int winWidth; // Calc after
-    int winHeight; // Calc after
+	// The following entries will be calculated later
+	// depending on the input
+    int winWidth;
+    int winHeight;
     char** text;
     int nLines;
 
@@ -53,20 +69,13 @@ struct Point {
     int x, y;
 } corner;
 
-struct stringSlice{
+struct StringSlice{
 	int start;	// Inclusive
 	int end;	// Not inclusive
 };
 
-void init();
-void close();
-unsigned long RGB(int r, int g, int b);
-XFontStruct* getFont();
-void calcWindowDimension(XFontStruct* font);
-void calcCornerPosition();
-bool loadConfig(std::string configName);
-void loadDefaultConfig();
 
+// Global variables
 Display *dis;
 int screen;
 Window win;
@@ -75,12 +84,12 @@ GC gc;
 
 int main(int argc, char* argv[]) {
 
-    if(argc == 1) {
+    if(argc <= 1) {
         std::cout << "Not specified text" <<std::endl;
         exit(0);
     }
 
-    // Default config name
+    // Default config name, Maybe not necessary?
 	std::string configName = "config_template";
     
     // Skip at least the name of the executable
@@ -104,10 +113,7 @@ int main(int argc, char* argv[]) {
         lines[i - start] = argv[i];
     style.text = lines;
 
-    // Load Config
-    if(!loadConfig(configName)){
-        loadDefaultConfig();
-    }
+    loadConfig(configName);
 
     // Init the window
     init();
@@ -280,61 +286,57 @@ unsigned long RGB(int r, int g, int b) {
     return b + (g<<8) + (r<<16);
 }
 
-void loadDefaultConfig(){
-	style.background = RGB(0, 0, 0);
-    style.borderColor = RGB(255, 0, 0);
-    style.textColor = RGB(255, 255, 255);
-    style.duration = 1000;
-    style.padding = 4;
-    style.border = 5;
-    style.position = Pos::TOP_LEFT;
-    style.paddingInside = 30;
-    style.fontSize = 20;
-    style.fontName = "arial black";
-    style.interlineSpace = 3;
-}
-
-
-void getConfigKeySlice(const char* s, stringSlice* keySlice){
+/* 
+ * Get the correct slice that represents the key in
+ * the config file's line.
+ * The separator is the charachter ':'.
+ * It sets keySlice.end to 0 if it does not find a valid key
+ * */
+void getConfigKeySlice(const char* config_line, StringSlice* keySlice){
 	
 	int index=0;
 
 	// Find first valid charachter of line
-	for(; index<strlen(s); index++){
-		if(s[index] != ' '){
+	for(; index<strlen(config_line); index++){
+		if(config_line[index] != ' '){
 			keySlice->start = index;
 			break;
 		}
 	}	
 
 	// Scan the rest of the line to find the separator
-	for(; index<strlen(s); index++){
-		if(s[index] == ':'){
+	for(; index<strlen(config_line); index++){
+		if(config_line[index] == ':'){
 			keySlice->end = index;
 			return;
 		}
 	}
 
 	// Ureachable if there is all we want
-	keySlice->end 	= 0;
+	keySlice->end = 0;
 }
 
-
-void getConfigValueSlice(const char* s, stringSlice* valSlice, int startIndex){
+/* 
+ * Get the correct slice that represents the value in
+ * the config file's line.
+ * The separator is the charachter ':'.
+ * It sets keySlice.end to 0 if it does not find a valid key
+ * */
+void getConfigValueSlice(const char* config_line, StringSlice* valSlice, int startIndex){
 	
 	int index=startIndex;
 
 	// Find first valid charachter of line
-	for(; index<strlen(s); index++){
-		if(s[index] != ' ' && s[index] != ':' && s[index] != '	'){
+	for(; index<strlen(config_line); index++){
+		if(config_line[index] != ' ' && config_line[index] != ':' && config_line[index] != '	'){
 			valSlice->start = index;
 			break;
 		}
 	}	
 
 	// Scan the rest of the line to find the end
-	for(; index<=strlen(s); index++){
-		if(s[index] == ' ' || s[index] == '\n' || s[index] == '\r' || s[index] == 0x0){
+	for(; index<=strlen(config_line); index++){
+		if(config_line[index] == ' ' || config_line[index] == '\n' || config_line[index] == '\r' || config_line[index] == 0x0){
 			valSlice->end = index;
 			return;
 		}
@@ -344,15 +346,18 @@ void getConfigValueSlice(const char* s, stringSlice* valSlice, int startIndex){
 	valSlice->end 	= 0;
 }
 
+/* 
+ * Cheks if the "to_check" string is equal to the slice of the "line" string
+ * that starts in slice.start and ends in slice.end (end not inclusive)
+ * */
+bool strSlice_equal(const char* line, const char* to_check, StringSlice* slice){
 
-bool strSlice_equal(const char* line, const char* s, stringSlice* slice){
-
-	if(slice->end - slice->start != strlen(s))
+	if(slice->end - slice->start != strlen(to_check))
 		return false;
 
 	int i_s = 0;
 	for(int i_line=slice->start; i_line<slice->end; i_line++){
-		if(line[i_line] != s[i_s++])
+		if(line[i_line] != to_check[i_s++])
 			return false;
 	}
 
@@ -360,77 +365,32 @@ bool strSlice_equal(const char* line, const char* s, stringSlice* slice){
 
 }
 
-
-// Returns true if succeded
-bool createDir(const char* base_path, const char* dirname){
-
-	DIR *base_dir;
-	if((base_dir = opendir(base_path)) == NULL){
-		// directory in base_path does not exist
-		#ifdef DEBUG
-			printf("%s does not exist, loading default config", base_path);
-		#endif
-		return false;
-	}
-
-	int dfd = dirfd(base_dir);
-	errno = 0;
-	int ret = mkdirat(dfd, dirname, S_IRWXU);
-	if (ret == -1) {
-		switch (errno) {
-			case EACCES :
-				#ifdef DEBUG
-					printf("Failed creating %s directory, loading default config", dirname);
-				#endif
-				return false;
-			case EEXIST:
-				// direcory already exists
-			break;
-			case ENAMETOOLONG:
-				printf("Pathname is too long, loading default config");
-				return false;
-			default:
-				#ifdef DEBUG
-					perror("mkdir");
-				#endif
-				return false;
-		}
-
-	}
-	closedir(base_dir);
-
-	return true;
-}
-
-void checkAndSet(int* prop, const char* propName, int defaultValue, const char* startPtr, const char* endPtr){
-	if(startPtr == endPtr || errno != 0){
-		*prop = defaultValue;
-		#ifdef DEBUG
+/* 
+ * Cheks the status of the "conversion to int" (done by "strtol") operation and if there are some errors
+ * sets the "prop" integer to be the default value for that property
+ * */
+void print_strol_errors(const char* propName, const char* startPtr, const char* endPtr){
+	#ifdef DEBUG
+		if(startPtr == endPtr || errno != 0)
 			printf("Invalid option for %s, loading default\n", propName);
-		#endif
-	}
+	#endif
 }
 
-// Returns true if succeded
-bool loadConfig(std::string configName){
+/* 
+ * Loads the config placed in $HOME/.config/<configname>.conf
+ * Returns true if succeded
+ * */
+bool loadConfig(const std::string& configName){
 
-	configName += ".conf";
+	std::string configDir_path = getpwuid(getuid())->pw_dir +  std::string("/.config/gstuff/");
 
-	// Get .config/ directory path of user that is launching the script
-	std::string configDir_path = getpwuid(getuid())->pw_dir +  std::string("/.config");
-
-
-	if(!createDir(configDir_path.c_str(), "gstuff"))
-		return false;
-	
-	configDir_path += "/gstuff/";
-
-	std::string configFile_path = configDir_path + configName;
+	std::string configFile_path = configDir_path + configName + ".conf";
 
 	FILE *config_file;
 
 	config_file = fopen(configFile_path.c_str(), "r");
 
+	// Error opening the file
 	if(config_file == NULL){
 		#ifdef DEBUG
 			printf("Error opening config file, loading default");
@@ -438,12 +398,12 @@ bool loadConfig(std::string configName){
 		return false;
 	}
 
+	// Read file lines one by one and parse them
 	char* line = NULL;
 	size_t len = 0;
 	ssize_t linelenght;
 	int lineindex = 0;
 	
-
 	while( (linelenght = getline(&line, &len, config_file)) != -1){
 
 		lineindex++;
@@ -452,15 +412,14 @@ bool loadConfig(std::string configName){
 		if(strcmp(line, "\n") == 0 || strlen(line) == 0)
 			continue;
 
-		stringSlice keySlice;
+		// Get the slices for key and value
+		StringSlice keySlice;
 		getConfigKeySlice(line, &keySlice);
 
-		stringSlice valSlice;
+		StringSlice valSlice;
 		getConfigValueSlice(line, &valSlice, keySlice.end);
 
-		char* endptr = NULL;
-		errno = 0;
-
+		// Error getting key or value
 		if(keySlice.end == 0 || valSlice.end == 0){
 			#ifdef DEBUG
 				printf("Line %d has an invalid syntax, skipping\n", lineindex);
@@ -469,6 +428,11 @@ bool loadConfig(std::string configName){
 			continue;
 		}
 
+		// These variables are used for error handling
+		char* endptr = NULL;
+		errno = 0;
+
+		// Parse the line and set the values accordingly
 		if(strSlice_equal(line, "position", &keySlice)){
 
 			if(strSlice_equal(line, "TOP_LEFT", &valSlice))
@@ -493,57 +457,53 @@ bool loadConfig(std::string configName){
 				style.position = Pos::TOP_LEFT;
 			}
 		}
-
 		else if(strSlice_equal(line, "background", &keySlice)){
 			style.background = strtol(line + valSlice.start + 1, &endptr, 16);
-			checkAndSet(&style.background, "background", RGB(0, 0, 0), line + valSlice.start + 1, endptr);
+			print_strol_errors("background", line + valSlice.start + 1, endptr);
 		}
 		else if(strSlice_equal(line, "borderColor", &keySlice)){
 			style.borderColor = strtol(line + valSlice.start + 1, &endptr, 16);
-			checkAndSet(&style.borderColor, "borderColor", RGB(255, 0, 0), line + valSlice.start + 1, endptr);
+			print_strol_errors("borderColor", line + valSlice.start + 1, endptr);
 		}
 		else if(strSlice_equal(line, "textColor", &keySlice)){
 			style.textColor = strtol(line + valSlice.start + 1, &endptr, 16);
-			checkAndSet(&style.textColor, "textColor", RGB(255, 255, 255), line + valSlice.start + 1, endptr);
+			print_strol_errors("textColor", line + valSlice.start + 1, endptr);
 		}
 		else if(strSlice_equal(line, "duration", &keySlice)){
 			style.duration = strtol(line + valSlice.start, &endptr, 0);
-			checkAndSet(&style.duration, "duration", 1000, line + valSlice.start, endptr);
+			print_strol_errors("duration", line + valSlice.start, endptr);
 		}
 		else if(strSlice_equal(line, "padding", &keySlice)){
 			style.padding = strtol(line + valSlice.start, &endptr, 0);
-			checkAndSet(&style.padding, "padding", 4, line + valSlice.start, endptr);
+			print_strol_errors("padding", line + valSlice.start, endptr);
 		}
 		else if(strSlice_equal(line, "paddingInside", &keySlice)){
 			style.paddingInside = strtol(line + valSlice.start, &endptr, 0);
-			checkAndSet(&style.paddingInside, "paddingInside", 30, line + valSlice.start, endptr);
+			print_strol_errors("paddingInside", line + valSlice.start, endptr);
 		}
 		else if(strSlice_equal(line, "border", &keySlice)){
 			style.border = strtol(line + valSlice.start, &endptr, 0);
-			checkAndSet(&style.border, "border", 5, line + valSlice.start, endptr);
+			print_strol_errors("border", line + valSlice.start, endptr);
 		}
 		else if(strSlice_equal(line, "interlineSpace", &keySlice)){
 			style.interlineSpace = strtol(line + valSlice.start, &endptr, 0);
-			checkAndSet(&style.interlineSpace, "interlineSpace", 3, line + valSlice.start, endptr);
+			print_strol_errors("interlineSpace", line + valSlice.start, endptr);
 		}
 		else if(strSlice_equal(line, "fontSize", &keySlice)){
 			style.fontSize = strtol(line + valSlice.start, &endptr, 0);
-			checkAndSet(&style.fontSize, "fontSize", 20, line + valSlice.start, endptr);
+			print_strol_errors("fontSize", line + valSlice.start, endptr);
 		}
-
 		else if(strSlice_equal(line, "fontName", &keySlice)){
-			style.fontName = (char*)malloc(sizeof(char) * (valSlice.end - valSlice.start + 1));
-			strcpy(style.fontName, line + valSlice.start);
-			if(style.fontName[strlen(style.fontName) - 1] == '\n')
-				style.fontName[strlen(style.fontName) - 1] = 0x0;
+			std::string parsed{line + valSlice.start};
+			if(parsed[parsed.length()-1] == '\n')
+				parsed.pop_back();
+			strcpy(style.fontName, parsed.c_str());
 		}
-
 		else{
 			#ifdef DEBUG
 				printf("Option at line %d not recognised, skipping\n", lineindex);
 			#endif
 		}
-
 	}
 
 	fclose(config_file);

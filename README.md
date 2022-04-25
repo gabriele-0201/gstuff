@@ -114,11 +114,11 @@ gstuff "your text here" "this text goes to the 2nd line" "this text goes to the 
 ```
 
 Or you can specify a configuration following this steps:
-- Copy `config_template.conf` into `/home/$USER/.config/gstuff` and rename it as you wish, we will call it `<myConfig>.conf`
+- Copy `config_template.conf` into `$HOME/.config/gstuff` and rename it as you wish, we will call it `<myConfig>.conf`
   ```sh
-  mkdir /home/$USER/.config/gstuff
-  cp ./config_template.conf /home/$USER/.config/gstuff
-  mv /home/$USER/.config/gstuff/config_template.conf /home/$USER/.config/gstuff/<myConfig>.conf
+  mkdir $HOME/.config/gstuff
+  cp ./config_template.conf $HOME/.config/gstuff
+  mv $HOME/.config/gstuff/config_template.conf $HOME/.config/gstuff/<myConfig>.conf
   ```
 - Edit the configration accordingly to your needs
   - Note: the fonts can be listed with `xlsfonts`
