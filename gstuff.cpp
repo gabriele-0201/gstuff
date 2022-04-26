@@ -43,7 +43,7 @@ enum Pos {
     TOP_RIGHT,
     BOTTOM_LEFT,
     BOTTOM_RIGHT,
-    CENTER // TODO
+    CENTER
 };
 
 struct Style {
@@ -57,13 +57,13 @@ struct Style {
     int border= 		5; //px
     int interlineSpace=	3; //px
 
-    Pos position= 		Pos::BOTTOM_RIGHT;
+    Pos position= 		Pos::TOP_LEFT;
 
     char* fontName= 	strdup("arial black");
     int fontSize= 		25;
 
 	// The following entries will be calculated later
-	// depending on the input
+	// depending on the input text
     int winWidth;
     int winHeight;
     char** text;
@@ -200,7 +200,6 @@ void init() {
     for(int i = 0; i < style.nLines; ++i) {
         XDrawString(dis, win, gc, style.paddingInside, style.paddingInside + font -> ascent + (i * (font -> descent + style.interlineSpace + font -> ascent)) , style.text[i], strlen(style.text[i]));
     }
-
 }
 
 /* 
@@ -260,7 +259,6 @@ void calcCornerPosition() {
 
 	int width, height, connected_monitors=0;
 
-    // TODO - Understand witch monitor use
 	for(int i=0; i<screens->noutput; i++){
 
 		out_info = XRRGetOutputInfo(dis, screens, screens->outputs[i]);
@@ -289,21 +287,21 @@ void calcCornerPosition() {
 
     switch(style.position) {
         case Pos::TOP_LEFT: // default
-            break;
+        break;
         case Pos::TOP_RIGHT:
             corner.x = (width) - style.winWidth - borderDim - corner.x;
-            break;
+        break;
         case Pos::BOTTOM_LEFT:
             corner.y = (height) - style.winHeight - borderDim - corner.y;
-            break;
+        break;
         case Pos::BOTTOM_RIGHT:
             corner.x = (width) - style.winWidth - borderDim - corner.x;
             corner.y = (height) - style.winHeight - borderDim - corner.y;
-            break;
+        break;
         case Pos::CENTER:
             corner.x = ((width) / 2) - ((style.winWidth - borderDim) / 2) ;
             corner.y = ((height) / 2)  - ((style.winHeight - borderDim) / 2);
-            break;
+        break;
     }
 
 }
