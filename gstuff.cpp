@@ -20,6 +20,12 @@
 // Uncomment next line to have debug messages printed to stdout
 #define DEBUG
 
+#ifdef DEBUG
+	#define debug_print(...) do { printf(__VA_ARGS__); } while(0);
+#endif
+#ifndef DEBUG
+	#define debug_print(fmt, ...) do { } while(0);
+#endif
 
 // Function declarations
 void init();
@@ -84,6 +90,10 @@ GC gc;
 
 int main(int argc, char* argv[]) {
 
+	// argc = 3;
+	// argv[1] = "--bella";
+	// argv[2] = "testo";
+
     if(argc <= 1) {
         std::cout << "Not specified text" <<std::endl;
         exit(0);
@@ -146,7 +156,11 @@ int main(int argc, char* argv[]) {
 void init() {
 
     // TODO - select the right display to show the window, for now always the primary
-    dis=XOpenDisplay((char *)0);
+    if( !(dis=XOpenDisplay((char*)0)) ){
+		printf("Fatal: cannot open display");
+		exit(1);
+	}
+
     screen=DefaultScreen(dis);
 
     // Load font
@@ -240,13 +254,35 @@ void calcCornerPosition() {
     int borderDim = style.border * 2;
 
     XRRScreenResources *screens = XRRGetScreenResources(dis, DefaultRootWindow(dis));
-    XRRCrtcInfo *info = NULL;
+    XRRCrtcInfo *crtc_info = NULL;
+	XRROutputInfo *out_info = NULL;
+	const RROutput primary = XRRGetOutputPrimary(dis, DefaultRootWindow(dis));
+
+	int width, height, connected_monitors=0;
 
     // TODO - Understand witch monitor use
-    info = XRRGetCrtcInfo(dis, screens, screens->crtcs[0]);
-    int width = info->width;
-    int height = info->height;
-    XRRFreeScreenResources(screens);
+	for(int i=0; i<screens->noutput; i++){
+
+		out_info = XRRGetOutputInfo(dis, screens, screens->outputs[i]);
+
+		if(out_info->connection == RR_Connected){
+			
+			crtc_info = XRRGetCrtcInfo(dis, screens, screens->crtcs[connected_monitors++]);
+			width = crtc_info->width;
+			height = crtc_info->height;
+
+			printf("Display number %d: %dx%d", connected_monitors-1, width, height);
+			if(primary == screens->outputs[i]){
+				printf(" --This the fukcing primary screen\n");
+			}
+			printf("\n");
+			XRRFreeCrtcInfo(crtc_info);
+		}
+	}
+
+	printf("Connected monitors: %d\n", connected_monitors);
+
+	XRRFreeScreenResources(screens);
 
     corner.x = (width * style.padding) / 100; // x : width = padding : 100
     corner.y = (height * style.padding) / 100;
@@ -370,10 +406,8 @@ bool strSlice_equal(const char* line, const char* to_check, StringSlice* slice){
  * sets the "prop" integer to be the default value for that property
  * */
 void print_strol_errors(const char* propName, const char* startPtr, const char* endPtr){
-	#ifdef DEBUG
-		if(startPtr == endPtr || errno != 0)
-			printf("Invalid option for %s, loading default\n", propName);
-	#endif
+	if(startPtr == endPtr || errno != 0)
+		debug_print("Invalid option for %s, loading default\n", propName);
 }
 
 /* 
@@ -392,9 +426,7 @@ bool loadConfig(const std::string& configName){
 
 	// Error opening the file
 	if(config_file == NULL){
-		#ifdef DEBUG
-			printf("Error opening config file, loading default");
-		#endif
+		debug_print("Error opening config file, loading default\n");
 		return false;
 	}
 
@@ -421,10 +453,7 @@ bool loadConfig(const std::string& configName){
 
 		// Error getting key or value
 		if(keySlice.end == 0 || valSlice.end == 0){
-			#ifdef DEBUG
-				printf("Line %d has an invalid syntax, skipping\n", lineindex);
-			#endif
-
+			debug_print("Line %d has an invalid syntax, skipping\n", lineindex);
 			continue;
 		}
 
@@ -451,9 +480,7 @@ bool loadConfig(const std::string& configName){
 				style.position = CENTER;
 
 			else{
-				#ifdef DEBUG
-					printf("Invalid option for position, skipping\n");
-				#endif
+				debug_print("Invalid option for position, skipping\n");
 				style.position = Pos::TOP_LEFT;
 			}
 		}
@@ -500,9 +527,7 @@ bool loadConfig(const std::string& configName){
 			strcpy(style.fontName, parsed.c_str());
 		}
 		else{
-			#ifdef DEBUG
-				printf("Option at line %d not recognised, skipping\n", lineindex);
-			#endif
+			debug_print("Option at line %d not recognised, skipping\n", lineindex);
 		}
 	}
 
