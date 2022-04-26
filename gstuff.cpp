@@ -84,6 +84,10 @@ GC gc;
 
 int main(int argc, char* argv[]) {
 
+	argc = 3;
+	argv[1] = "--bella";
+	argv[2] = "testo";
+
     if(argc <= 1) {
         std::cout << "Not specified text" <<std::endl;
         exit(0);
@@ -245,7 +249,7 @@ void calcCornerPosition() {
 	XRROutputInfo *out_info = NULL;
 	const RROutput primary = XRRGetOutputPrimary(dis, DefaultRootWindow(dis));
 
-    int width, height;
+    int width, height, n_screens=0;
 
     for(int i=0; i<screens->noutput; i++){
 
@@ -253,7 +257,7 @@ void calcCornerPosition() {
 
 		if(out_info->connection == RR_Connected){
 			
-			crtc_info = XRRGetCrtcInfo(dis, screens, screens->crtcs[i]);
+			crtc_info = XRRGetCrtcInfo(dis, screens, screens->crtcs[n_screens++]);
 
 			if(primary == screens->outputs[i]){
 			    width = crtc_info->width;
