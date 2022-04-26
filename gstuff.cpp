@@ -239,13 +239,30 @@ void calcCornerPosition() {
     // calc top left corner position
     int borderDim = style.border * 2;
 
+    // get the dim of the primary display
     XRRScreenResources *screens = XRRGetScreenResources(dis, DefaultRootWindow(dis));
-    XRRCrtcInfo *info = NULL;
+    XRRCrtcInfo *crtc_info = NULL;
+	XRROutputInfo *out_info = NULL;
+	const RROutput primary = XRRGetOutputPrimary(dis, DefaultRootWindow(dis));
 
-    // TODO - Understand witch monitor use
-    info = XRRGetCrtcInfo(dis, screens, screens->crtcs[0]);
-    int width = info->width;
-    int height = info->height;
+    int width, height;
+
+    for(int i=0; i<screens->noutput; i++){
+
+		out_info = XRRGetOutputInfo(dis, screens, screens->outputs[i]);
+
+		if(out_info->connection == RR_Connected){
+			
+			crtc_info = XRRGetCrtcInfo(dis, screens, screens->crtcs[i]);
+
+			if(primary == screens->outputs[i]){
+			    width = crtc_info->width;
+			    height = crtc_info->height;
+			}
+
+			XRRFreeCrtcInfo(crtc_info);
+		}
+	}
     XRRFreeScreenResources(screens);
 
     corner.x = (width * style.padding) / 100; // x : width = padding : 100
