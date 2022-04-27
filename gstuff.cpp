@@ -143,7 +143,7 @@ int main(int argc, char* argv[]) {
 
         if(event.type==ButtonPress) 
             close();
-    } while(passed < microDur);
+        } while(passed < microDur);
     
     return 0;
 }
@@ -158,7 +158,7 @@ void init() {
     Visual *visual = DefaultVisual(dis, screen);
 	Colormap colormap = DefaultColormap(dis, screen);
     XftColor textColor;
-	XftColorAllocName(dis, visual, colormap, style.textColor, &textColor);
+	XftColorAllocName(dis, visual, colormap, "blue", &textColor);
     XftFont* font = getFont();
     XftDraw *draw = XftDrawCreate(dis, win, visual, colormap);
 
@@ -219,7 +219,7 @@ XftFont* getFont()
     strcat(fontname,"-0-0-p-0-iso10646-1");
     */
 
-    XftFont *font = XftFontOpenName(display, screen, style.fontName);
+    XftFont *font = XftFontOpenName(dis, screen, style.fontName);
     //XFontStruct * font = XLoadQueryFont (dis, fontname);
     // If the font could not be loaded, revert to the "fixed" font
     if (! font) {
