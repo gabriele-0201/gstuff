@@ -2,6 +2,7 @@
 #include <X11/Xutil.h>
 #include <X11/Xos.h>
 #include <X11/extensions/Xrandr.h>
+#include <X11/Xft/Xft.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,7 +26,7 @@
 void init();
 void close();
 unsigned long RGB(int r, int g, int b);
-XFontStruct* getFont();
+XftFont* getFont();
 void calcWindowDimension(XFontStruct* font);
 void calcCornerPosition();
 bool loadConfig(const std::string& configName);
@@ -154,7 +155,12 @@ void init() {
     screen=DefaultScreen(dis);
 
     // Load font
-    XFontStruct* font = getFont();
+    Visual *visual = DefaultVisual(dis, screen);
+	Colormap colormap = DefaultColormap(dis, screen);
+    XftColor textColor;
+	XftColorAllocName(dis, visual, colormap, style.textColor, &textColor);
+    XftFont* font = getFont();
+    XftDraw *draw = XftDrawCreate(dis, win, visual, colormap);
 
     // Calc Window Size 
     calcWindowDimension(font);
@@ -183,12 +189,16 @@ void init() {
     XMapRaised(dis, win);
     
     // Set Font and Color
-    XSetFont (dis, gc, font->fid);
-    XSetForeground(dis,gc,style.textColor);
+    //XSetFont (dis, gc, font->fid);
+    //XSetForeground(dis,gc,style.textColor);
 
     // Print the lines
     for(int i = 0; i < style.nLines; ++i) {
-        XDrawString(dis, win, gc, style.paddingInside, style.paddingInside + font -> ascent + (i * (font -> descent + style.interlineSpace + font -> ascent)) , style.text[i], strlen(style.text[i]));
+
+        //XDrawString(dis, win, gc, style.paddingInside, style.paddingInside + font -> ascent + (i * (font -> descent + style.interlineSpace + font -> ascent)) , style.text[i], strlen(style.text[i]));
+
+        XftDrawStringUtf8(draw, &textColor, font, style.paddingInside, style.paddingInside + font -> ascent + (i * (font -> descent + style.interlineSpace + font -> ascent)),
+								  (FcChar8 *)style.text[i], strlen(style.text[i]));
     }
 
 }
@@ -196,8 +206,10 @@ void init() {
 /* 
  * Set up the text font
  * */
-XFontStruct* getFont()
+XftFont* getFont()
 {
+
+    /*
     char fontname[255] = "-*-";
     strcat(fontname, style.fontName);
     strcat(fontname, "-medium-r-normal--0-");
@@ -205,8 +217,10 @@ XFontStruct* getFont()
     sprintf(converted, "%d", style.fontSize * 10);
     strcat(fontname, converted);
     strcat(fontname,"-0-0-p-0-iso10646-1");
+    */
 
-    XFontStruct * font = XLoadQueryFont (dis, fontname);
+    XftFont *font = XftFontOpenName(display, screen, style.fontName);
+    //XFontStruct * font = XLoadQueryFont (dis, fontname);
     // If the font could not be loaded, revert to the "fixed" font
     if (! font) {
         fprintf (stderr, "unable to load font %s: using fixed\n", fontname);
@@ -232,6 +246,11 @@ void calcWindowDimension(XFontStruct* font) {
     // descent -> pixel down base line
     int heightCharaceter = font -> ascent + font -> descent;
     style.winHeight =  style.nLines * (heightCharaceter + style.interlineSpace) + (2 * style.paddingInside);
+
+    // XGlyphInfo info;
+    // What is this?
+	//XftTextExtentsUtf8(dis, font, (FcChar8 *)string, eol, &info);
+
 }
 
 /*
