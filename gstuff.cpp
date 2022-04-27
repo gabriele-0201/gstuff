@@ -20,6 +20,14 @@
 // Uncomment next line to have debug messages printed to stdout
 #define DEBUG
 
+// Debug macros
+#ifdef DEBUG
+	#define debug_print(...) do { printf(__VA_ARGS__); } while(0);
+#endif
+#ifndef DEBUG
+	#define debug_print(fmt, ...) do { } while(0);
+#endif
+
 
 // Function declarations
 void init();
@@ -85,9 +93,9 @@ RROutput prim_display;
 
 int main(int argc, char* argv[]) {
 
-	argc = 3;
-	argv[1] = "--bella";
-	argv[2] = "testo";
+	// argc = 3;
+	// argv[1] = "--bella";
+	// argv[2] = "testo";
 
     if(argc <= 1) {
         std::cout << "Not specified text" <<std::endl;
@@ -392,10 +400,8 @@ bool strSlice_equal(const char* line, const char* to_check, StringSlice* slice){
  * sets the "prop" integer to be the default value for that property
  * */
 void print_strol_errors(const char* propName, const char* startPtr, const char* endPtr){
-	#ifdef DEBUG
-		if(startPtr == endPtr || errno != 0)
-			printf("Invalid option for %s, loading default\n", propName);
-	#endif
+	if(startPtr == endPtr || errno != 0)
+		debug_print("Invalid option for %s, loading default\n", propName);
 }
 
 /* 
@@ -414,9 +420,7 @@ bool loadConfig(const std::string& configName){
 
 	// Error opening the file
 	if(config_file == NULL){
-		#ifdef DEBUG
-			printf("Error opening config file, loading default");
-		#endif
+		debug_print("Error opening config file, loading default");
 		return false;
 	}
 
@@ -443,10 +447,7 @@ bool loadConfig(const std::string& configName){
 
 		// Error getting key or value
 		if(keySlice.end == 0 || valSlice.end == 0){
-			#ifdef DEBUG
-				printf("Line %d has an invalid syntax, skipping\n", lineindex);
-			#endif
-
+			debug_print("Line %d has an invalid syntax, skipping\n", lineindex);
 			continue;
 		}
 
@@ -473,9 +474,7 @@ bool loadConfig(const std::string& configName){
 				style.position = CENTER;
 
 			else{
-				#ifdef DEBUG
-					printf("Invalid option for position, skipping\n");
-				#endif
+				printf("Invalid option for position, skipping\n");
 				style.position = Pos::TOP_LEFT;
 			}
 		}
@@ -522,9 +521,7 @@ bool loadConfig(const std::string& configName){
 			strcpy(style.fontName, parsed.c_str());
 		}
 		else{
-			#ifdef DEBUG
-				printf("Option at line %d not recognised, skipping\n", lineindex);
-			#endif
+			printf("Option at line %d not recognised, skipping\n", lineindex);
 		}
 	}
 
