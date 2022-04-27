@@ -80,6 +80,7 @@ Display *dis;
 int screen;
 Window win;
 GC gc;
+RROutput prim_display;
 
 
 int main(int argc, char* argv[]) {
@@ -247,7 +248,7 @@ void calcCornerPosition() {
     XRRScreenResources *screens = XRRGetScreenResources(dis, DefaultRootWindow(dis));
     XRRCrtcInfo *crtc_info = NULL;
 	XRROutputInfo *out_info = NULL;
-	const RROutput primary = XRRGetOutputPrimary(dis, DefaultRootWindow(dis));
+	RROutput prim_display = XRRGetOutputPrimary(dis, DefaultRootWindow(dis));
 
     int width, height, n_screens=0;
 
@@ -259,7 +260,7 @@ void calcCornerPosition() {
 			
 			crtc_info = XRRGetCrtcInfo(dis, screens, screens->crtcs[n_screens++]);
 
-			if(primary == screens->outputs[i]){
+			if(prim_display == screens->outputs[i]){
 			    width = crtc_info->width;
 			    height = crtc_info->height;
 			}
