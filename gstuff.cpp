@@ -31,15 +31,6 @@
 #define USAGE "Usage: gstuff --myConfig \"first line\" \"second line\""
 
 
-// Function declarations
-void init();
-void close();
-XftFont* getFont();
-void calcWindowDimension(XftFont* font);
-void calcCornerPosition();
-bool loadConfig(const std::string& configName);
-
-
 // Enums and structs
 enum Pos {
     TOP_LEFT,
@@ -89,6 +80,21 @@ Display *dis;
 int screen;
 Window win;
 XftColor color;
+XSetWindowAttributes windowAttributes;
+Visual *visual;
+Colormap colormap;
+XftFont *font;
+
+
+// Function declarations
+void init();
+void close();
+void setFont();
+void calcWindowDimension(XftFont* font);
+void calcCornerPosition();
+bool loadConfig(const std::string& configName);
+void setWindowAttributes();
+
 
 int main(int argc, char* argv[]) {
 
@@ -161,37 +167,26 @@ void init() {
     dis=XOpenDisplay((char *)0);
     screen=DefaultScreen(dis);
 
-	Visual *visual = DefaultVisual(dis, screen);
-	Colormap colormap = DefaultColormap(dis, screen);
-	XftFont *font = getFont();
+	visual = DefaultVisual(dis, screen);
+	colormap = DefaultColormap(dis, screen);
 	
-	XSetWindowAttributes attributes;
-	attributes.override_redirect = True;
-	XftColorAllocName(dis, visual, colormap, style.background, &color);
-	attributes.background_pixel = color.pixel;
-	XftColorAllocName(dis, visual, colormap, style.borderColor, &color);
-	attributes.border_pixel = color.pixel;
+	setFont();
+	
+	setWindowAttributes();
 
-    // Calc Window Size 
     calcWindowDimension(font);
     
-    // Calc Corner Position
     calcCornerPosition();
 
-    // Create the window
 	win = XCreateWindow(dis, RootWindow(dis, screen), corner.x, corner.y, style.winWidth, style.winHeight, style.border, DefaultDepth(dis, screen),
-						   CopyFromParent, visual, CWOverrideRedirect | CWBackPixel | CWBorderPixel, &attributes);
+						   CopyFromParent, visual, CWOverrideRedirect | CWBackPixel | CWBorderPixel, &windowAttributes);
 
 	XftDraw *draw = XftDrawCreate(dis, win, visual, colormap);
-	XftColorAllocName(dis, visual, colormap, style.textColor, &color);
 	
 	XSetStandardProperties(dis, win, "gsfuff", "", None, NULL, 0, NULL);
     XSelectInput(dis, win, ExposureMask | ButtonPressMask | KeyPressMask);
 
-    // Set non managed window
-    XSetWindowAttributes set_attr;
-    set_attr.override_redirect = True;
-    XChangeWindowAttributes(dis, win, CWOverrideRedirect, &set_attr);
+    XChangeWindowAttributes(dis, win, CWOverrideRedirect, &windowAttributes);
     
     // Map the window on screen
     XMapWindow(dis, win);
@@ -211,16 +206,30 @@ void init() {
 /* 
  * Set up the text font
  * */
-XftFont* getFont()
+void setFont()
 {
-
-    XftFont *font = XftFontOpenName(dis, screen, style.fontName);
+    font = XftFontOpenName(dis, screen, style.fontName);
     if (! font) {
 		fprintf(stderr, "Fatal: cannot load font");
 		exit(1);
     }
+}
 
-    return font;
+/* 
+ * Sets the window attributes
+ * */
+void setWindowAttributes(){
+    // Non managed window
+	windowAttributes.override_redirect = True;
+
+	// Allocate colors
+	XftColorAllocName(dis, visual, colormap, style.background, &color);
+	windowAttributes.background_pixel = color.pixel;
+
+	XftColorAllocName(dis, visual, colormap, style.borderColor, &color);
+	windowAttributes.border_pixel = color.pixel;
+
+	XftColorAllocName(dis, visual, colormap, style.textColor, &color);
 }
 
 /*
@@ -283,22 +292,23 @@ void calcCornerPosition() {
     corner.y = (height * style.padding) / 100;
 
     switch(style.position) {
-        case Pos::TOP_LEFT: // default
-            break;
+        case Pos::TOP_LEFT: 
+			// default
+        break;
         case Pos::TOP_RIGHT:
             corner.x = (width) - style.winWidth - borderDim - corner.x;
-            break;
+        break;
         case Pos::BOTTOM_LEFT:
             corner.y = (height) - style.winHeight - borderDim - corner.y;
-            break;
+        break;
         case Pos::BOTTOM_RIGHT:
             corner.x = (width) - style.winWidth - borderDim - corner.x;
             corner.y = (height) - style.winHeight - borderDim - corner.y;
-            break;
+        break;
         case Pos::CENTER:
             corner.x = ((width) / 2) - ((style.winWidth - borderDim) / 2) ;
             corner.y = ((height) / 2)  - ((style.winHeight - borderDim) / 2);
-            break;
+        break;
     }
 
 }
@@ -387,9 +397,7 @@ bool strSlice_equal(const char* line, const char* to_check, StringSlice* slice){
 		if(line[i_line] != to_check[i_s++])
 			return false;
 	}
-
 	return true;
-
 }
 
 /* 
@@ -408,11 +416,9 @@ void print_strol_errors(const char* propName, const char* startPtr, const char* 
 bool loadConfig(const std::string& configName){
 
 	std::string configDir_path = getpwuid(getuid())->pw_dir + std::string("/.config/gstuff/");
-
 	std::string configFile_path = configDir_path + configName + ".conf";
 
 	FILE *config_file;
-
 	config_file = fopen(configFile_path.c_str(), "r");
 
 	// Error opening the file
@@ -438,7 +444,6 @@ bool loadConfig(const std::string& configName){
 		// Get the slices for key and value
 		StringSlice keySlice;
 		getConfigKeySlice(line, &keySlice);
-
 		StringSlice valSlice;
 		getConfigValueSlice(line, &valSlice, keySlice.end);
 
@@ -475,24 +480,6 @@ bool loadConfig(const std::string& configName){
 				style.position = Pos::TOP_LEFT;
 			}
 		}
-		else if(strSlice_equal(line, "background", &keySlice)){
-			std::string parsed{line + valSlice.start};
-			if(parsed[parsed.length()-1] == '\n')
-				parsed.pop_back();
-			strcpy(style.background, parsed.c_str());
-		}
-		else if(strSlice_equal(line, "borderColor", &keySlice)){
-			std::string parsed{line + valSlice.start};
-			if(parsed[parsed.length()-1] == '\n')
-				parsed.pop_back();
-			strcpy(style.borderColor, parsed.c_str());
-		}
-		else if(strSlice_equal(line, "textColor", &keySlice)){
-			std::string parsed{line + valSlice.start};
-			if(parsed[parsed.length()-1] == '\n')
-				parsed.pop_back();
-			strcpy(style.textColor, parsed.c_str());
-		}
 		else if(strSlice_equal(line, "duration", &keySlice)){
 			style.duration = strtol(line + valSlice.start, &endptr, 0);
 			print_strol_errors("duration", line + valSlice.start, endptr);
@@ -522,6 +509,24 @@ bool loadConfig(const std::string& configName){
 			if(parsed[parsed.length()-1] == '\n')
 				parsed.pop_back();
 			strcpy(style.fontName, parsed.c_str());
+		}
+		else if(strSlice_equal(line, "background", &keySlice)){
+			std::string parsed{line + valSlice.start};
+			if(parsed[parsed.length()-1] == '\n')
+				parsed.pop_back();
+			strcpy(style.background, parsed.c_str());
+		}
+		else if(strSlice_equal(line, "borderColor", &keySlice)){
+			std::string parsed{line + valSlice.start};
+			if(parsed[parsed.length()-1] == '\n')
+				parsed.pop_back();
+			strcpy(style.borderColor, parsed.c_str());
+		}
+		else if(strSlice_equal(line, "textColor", &keySlice)){
+			std::string parsed{line + valSlice.start};
+			if(parsed[parsed.length()-1] == '\n')
+				parsed.pop_back();
+			strcpy(style.textColor, parsed.c_str());
 		}
 		else{
 			debug_print("Option at line %d not recognised, skipping\n", lineindex);
