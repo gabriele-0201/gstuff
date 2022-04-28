@@ -183,8 +183,6 @@ void init() {
 	win = XCreateWindow(dis, RootWindow(dis, screen), corner.x, corner.y, style.winWidth, style.winHeight, style.border, DefaultDepth(dis, screen),
 						   CopyFromParent, visual, CWOverrideRedirect | CWBackPixel | CWBorderPixel, &windowAttributes);
 
-	XftDraw *draw = XftDrawCreate(dis, win, visual, colormap);
-	
 	XSetStandardProperties(dis, win, "gsfuff", "", None, NULL, 0, NULL);
     XSelectInput(dis, win, ExposureMask | ButtonPressMask | KeyPressMask);
 
@@ -196,6 +194,8 @@ void init() {
     // Display the window on top of any other
     XClearWindow(dis, win);
     XMapRaised(dis, win);
+
+	XftDraw *draw = XftDrawCreate(dis, win, visual, colormap);
 
     // Print the lines
     for(int i = 0; i < style.nLines; ++i) {
@@ -213,6 +213,7 @@ void setFont()
 
 	font = XftFontOpenName(dis, screen, fontAndSize.c_str());
     if (! font) {
+		// TODO: set default font
 		fprintf(stderr, "Fatal: cannot load font");
 		exit(1);
     }
@@ -241,15 +242,16 @@ void setWindowAttributes(){
  * */
 void calcWindowDimension(XftFont* font) {
 
-	int maxLineLenght = 0;
+	int linePixelLenght = 0;
+	XGlyphInfo info;
 
     // Check each line to calc the max width
     for(int i = 0; i < style.nLines; ++i) {
-        int line_width = strlen(style.text[i]);
-        maxLineLenght = maxLineLenght < line_width ? line_width : maxLineLenght;
+		XftTextExtentsUtf8(dis, font, (FcChar8 *)style.text[i], strlen(style.text[i]), &info);
+        linePixelLenght = linePixelLenght < info.width ? info.width : linePixelLenght;
 	}
 
-	style.winWidth = maxLineLenght * font->max_advance_width;
+	style.winWidth = linePixelLenght;
 	style.winWidth += 2*style.paddingInside;
 
     // ascent -> pixel up base line
