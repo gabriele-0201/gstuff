@@ -53,7 +53,7 @@ struct Style {
 
     Pos position= 		Pos::BOTTOM_RIGHT;
 
-    char* fontName= 	strdup("arial black");
+    char* fontName= 	strdup("monospace");
     int fontSize= 		25;
 
 	// The following entries will be calculated later
@@ -201,7 +201,6 @@ void init() {
 		XftDrawStringUtf8(draw, &color, font, style.paddingInside, style.paddingInside + font -> ascent + (i * (font -> descent + style.interlineSpace + font -> ascent)),
 								  (FcChar8 *)style.text[i], strlen(style.text[i]));
     }
-
 }
 
 /* 
@@ -209,7 +208,9 @@ void init() {
  * */
 void setFont()
 {
-    font = XftFontOpenName(dis, screen, style.fontName);
+	const std::string fontAndSize = style.fontName + std::string(":size=") + std::to_string(style.fontSize);
+
+	font = XftFontOpenName(dis, screen, fontAndSize.c_str());
     if (! font) {
 		fprintf(stderr, "Fatal: cannot load font");
 		exit(1);
