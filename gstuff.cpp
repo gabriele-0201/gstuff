@@ -32,7 +32,7 @@
 
 
 // Enums and structs
-enum Pos {
+enum class Pos {
     TOP_LEFT,
     TOP_RIGHT,
     BOTTOM_LEFT,
@@ -40,9 +40,9 @@ enum Pos {
     CENTER
 };
 
-enum TextFormat {
+enum class TextFormat {
     LEFT,
-    TCENTER,
+    CENTER,
     RIGHT
 };
 
@@ -59,7 +59,7 @@ struct Style {
 
     Pos position= 		Pos::BOTTOM_RIGHT;
 
-    TextFormat textFormat =TextFormat::LEFT;
+    TextFormat textFormat= TextFormat::LEFT;
 
     char* fontName= 	strdup("monospace");
     int fontSize= 		25;
@@ -217,7 +217,7 @@ void init() {
 
                 startLine = style.paddingInside;
                 break;
-            case TextFormat::TCENTER:
+            case TextFormat::CENTER:
 		        XftTextExtentsUtf8(dis, font, (FcChar8 *)style.text[i], strlen(style.text[i]), &info);
 
                 startLine = (style.winWidth / 2) - (info.width / 2);
@@ -497,23 +497,39 @@ bool loadConfig(const std::string& configName){
 		if(strSlice_equal(line, "position", &keySlice)){
 
 			if(strSlice_equal(line, "TOP_LEFT", &valSlice))
-				style.position = TOP_LEFT;
+				style.position = Pos::TOP_LEFT;
 			
 			else if(strSlice_equal(line, "TOP_RIGHT", &valSlice))
-				style.position = TOP_RIGHT;
+				style.position = Pos::TOP_RIGHT;
 			
 			else if(strSlice_equal(line, "BOTTOM_LEFT", &valSlice))
-				style.position = BOTTOM_LEFT;
+				style.position = Pos::BOTTOM_LEFT;
 			
 			else if(strSlice_equal(line, "BOTTOM_RIGHT", &valSlice))
-				style.position = BOTTOM_RIGHT;
+				style.position = Pos::BOTTOM_RIGHT;
 
 			else if(strSlice_equal(line, "CENTER", &valSlice))
-				style.position = CENTER;
+				style.position = Pos::CENTER;
 
 			else{
 				debug_print("Invalid option for position, skipping\n");
 				style.position = Pos::TOP_LEFT;
+			}
+		}
+		else if(strSlice_equal(line, "textFormat", &keySlice)){
+
+			if(strSlice_equal(line, "LEFT", &valSlice))
+				style.textFormat = TextFormat::LEFT;
+			
+			else if(strSlice_equal(line, "CENTER", &valSlice))
+				style.textFormat = TextFormat::CENTER;
+			
+			else if(strSlice_equal(line, "RIGHT", &valSlice))
+				style.textFormat = TextFormat::RIGHT;
+
+			else{
+				debug_print("Invalid option for textFormat, skipping\n");
+				style.textFormat = TextFormat::LEFT;
 			}
 		}
 		else if(strSlice_equal(line, "duration", &keySlice)){
