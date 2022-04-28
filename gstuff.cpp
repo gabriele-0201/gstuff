@@ -27,7 +27,7 @@ void init();
 void close();
 unsigned long RGB(int r, int g, int b);
 XftFont* getFont();
-void calcWindowDimension(XFontStruct* font);
+void calcWindowDimension(XftFont* font);
 void calcCornerPosition();
 bool loadConfig(const std::string& configName);
 
@@ -42,9 +42,9 @@ enum Pos {
 };
 
 struct Style {
-    int background= 	RGB(51, 51, 0);
-	int borderColor= 	RGB(255, 255, 102);
-	int textColor=	 	RGB(255, 255, 255);
+    char* background= 	strdup("#323200");
+	char* borderColor= 	strdup("#FFFF44");
+	char* textColor=	strdup("#FFFFFF");
 
     int duration= 		2000; //milliseconds
     int padding= 		4; //%
@@ -82,12 +82,11 @@ int screen;
 Window win;
 GC gc;
 
-
 int main(int argc, char* argv[]) {
 
-	argc = 3;
-	argv[1] = "--bella";
-	argv[2] = "testo";
+	// argc = 3;
+	// argv[1] = "--bella";
+	// argv[2] = "testo";
 
     if(argc <= 1) {
         std::cout << "Not specified text" <<std::endl;
@@ -143,7 +142,7 @@ int main(int argc, char* argv[]) {
 
         if(event.type==ButtonPress) 
             close();
-        } while(passed < microDur);
+    } while(passed < microDur);
     
     return 0;
 }
@@ -154,13 +153,19 @@ void init() {
     dis=XOpenDisplay((char *)0);
     screen=DefaultScreen(dis);
 
-    // Load font
-    Visual *visual = DefaultVisual(dis, screen);
+	Visual *visual = DefaultVisual(dis, screen);
 	Colormap colormap = DefaultColormap(dis, screen);
-    XftColor textColor;
-	XftColorAllocName(dis, visual, colormap, "blue", &textColor);
-    XftFont* font = getFont();
-    XftDraw *draw = XftDrawCreate(dis, win, visual, colormap);
+	//XftFont *font = XftFontOpenName(display, screen, "monospace:size=20");
+	XftFont *font = getFont();
+
+	
+	XSetWindowAttributes attributes;
+	attributes.override_redirect = True;
+	XftColor color;
+	XftColorAllocName(dis, visual, colormap, style.background, &color);
+	attributes.background_pixel = color.pixel;
+	XftColorAllocName(dis, visual, colormap, style.borderColor, &color);
+	attributes.border_pixel = color.pixel;
 
     // Calc Window Size 
     calcWindowDimension(font);
@@ -169,9 +174,14 @@ void init() {
     calcCornerPosition();
 
     // Create the window
-    win=XCreateSimpleWindow(dis, DefaultRootWindow(dis), corner.x, corner.y, style.winWidth, style.winHeight, style.border ,style.borderColor, style.background);
-    
-    XSetStandardProperties(dis, win, "gsfuff", "", None, NULL, 0, NULL);
+    //window=XCreateSimpleWindow(display, DefaultRootWindow(display), corner.x, corner.y, style.winWidth, style.winHeight, style.border ,style.borderColor, style.background);
+	win = XCreateWindow(dis, RootWindow(dis, screen), corner.x, corner.y, style.winWidth, style.winHeight, style.border, DefaultDepth(dis, screen),
+						   CopyFromParent, visual, CWOverrideRedirect | CWBackPixel | CWBorderPixel, &attributes);
+
+	XftDraw *draw = XftDrawCreate(dis, win, visual, colormap);
+	XftColorAllocName(dis, visual, colormap, style.textColor, &color);
+	
+	XSetStandardProperties(dis, win, "gsfuff", "", None, NULL, 0, NULL);
     XSelectInput(dis, win, ExposureMask | ButtonPressMask | KeyPressMask);
     
     gc=XCreateGC(dis, win, 0,0);
@@ -187,17 +197,10 @@ void init() {
     // Display the window on top of any other
     XClearWindow(dis, win);
     XMapRaised(dis, win);
-    
-    // Set Font and Color
-    //XSetFont (dis, gc, font->fid);
-    //XSetForeground(dis,gc,style.textColor);
 
     // Print the lines
     for(int i = 0; i < style.nLines; ++i) {
-
-        //XDrawString(dis, win, gc, style.paddingInside, style.paddingInside + font -> ascent + (i * (font -> descent + style.interlineSpace + font -> ascent)) , style.text[i], strlen(style.text[i]));
-
-        XftDrawStringUtf8(draw, &textColor, font, style.paddingInside, style.paddingInside + font -> ascent + (i * (font -> descent + style.interlineSpace + font -> ascent)),
+		XftDrawStringUtf8(draw, &color, font, style.paddingInside, style.paddingInside + font -> ascent + (i * (font -> descent + style.interlineSpace + font -> ascent)),
 								  (FcChar8 *)style.text[i], strlen(style.text[i]));
     }
 
@@ -209,22 +212,10 @@ void init() {
 XftFont* getFont()
 {
 
-    /*
-    char fontname[255] = "-*-";
-    strcat(fontname, style.fontName);
-    strcat(fontname, "-medium-r-normal--0-");
-    char converted[10];
-    sprintf(converted, "%d", style.fontSize * 10);
-    strcat(fontname, converted);
-    strcat(fontname,"-0-0-p-0-iso10646-1");
-    */
-
     XftFont *font = XftFontOpenName(dis, screen, style.fontName);
-    //XFontStruct * font = XLoadQueryFont (dis, fontname);
-    // If the font could not be loaded, revert to the "fixed" font
     if (! font) {
-        fprintf (stderr, "unable to load font %s: using fixed\n", fontname);
-        font = XLoadQueryFont (dis, "fixed");
+		printf("Cannot load font");
+		exit(1);
     }
 
     return font;
@@ -234,13 +225,17 @@ XftFont* getFont()
  * Dependig on the text and the font size calc the dimension of the window
  * Always the minimum possible
  * */
-void calcWindowDimension(XFontStruct* font) {
+void calcWindowDimension(XftFont* font) {
 
     // Check each line to calc the max width
     for(int i = 0; i < style.nLines; ++i) {
-        int currentWidth = XTextWidth(font, style.text[i], strlen(style.text[i])) + (2 * style.paddingInside);
-        style.winWidth = style.winWidth < currentWidth ? currentWidth : style.winWidth;
-    }
+        // int currentWidth = XTextWidth(font, style.text[i], strlen(style.text[i])) + (2 * style.paddingInside);
+        // style.winWidth = style.winWidth < currentWidth ? currentWidth : style.winWidth;
+		int line_width = strlen(style.text[i]);
+        style.winWidth = style.winWidth < line_width ? line_width : style.winWidth;
+	}
+
+	style.winWidth *= style.fontSize;
 
     // ascent -> pixel up base line
     // descent -> pixel down base line
@@ -249,7 +244,7 @@ void calcWindowDimension(XFontStruct* font) {
 
     // XGlyphInfo info;
     // What is this?
-	//XftTextExtentsUtf8(dis, font, (FcChar8 *)string, eol, &info);
+	//XftTextExtentsUtf8(display, font, (FcChar8 *)string, eol, &info);
 
 }
 
@@ -498,16 +493,22 @@ bool loadConfig(const std::string& configName){
 			}
 		}
 		else if(strSlice_equal(line, "background", &keySlice)){
-			style.background = strtol(line + valSlice.start + 1, &endptr, 16);
-			print_strol_errors("background", line + valSlice.start + 1, endptr);
+			std::string parsed{line + valSlice.start};
+			if(parsed[parsed.length()-1] == '\n')
+				parsed.pop_back();
+			strcpy(style.background, parsed.c_str());
 		}
 		else if(strSlice_equal(line, "borderColor", &keySlice)){
-			style.borderColor = strtol(line + valSlice.start + 1, &endptr, 16);
-			print_strol_errors("borderColor", line + valSlice.start + 1, endptr);
+			std::string parsed{line + valSlice.start};
+			if(parsed[parsed.length()-1] == '\n')
+				parsed.pop_back();
+			strcpy(style.borderColor, parsed.c_str());
 		}
 		else if(strSlice_equal(line, "textColor", &keySlice)){
-			style.textColor = strtol(line + valSlice.start + 1, &endptr, 16);
-			print_strol_errors("textColor", line + valSlice.start + 1, endptr);
+			std::string parsed{line + valSlice.start};
+			if(parsed[parsed.length()-1] == '\n')
+				parsed.pop_back();
+			strcpy(style.textColor, parsed.c_str());
 		}
 		else if(strSlice_equal(line, "duration", &keySlice)){
 			style.duration = strtol(line + valSlice.start, &endptr, 0);
