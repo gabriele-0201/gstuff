@@ -257,7 +257,7 @@ void calcWindowDimension(XftFont* font) {
     // ascent -> pixel up base line
     // descent -> pixel down base line
     int heightCharaceter = font -> ascent + font -> descent;
-    style.winHeight =  style.nLines * (heightCharaceter + style.interlineSpace) + (2 * style.paddingInside);
+    style.winHeight =  style.nLines * (heightCharaceter + style.interlineSpace) - style.interlineSpace + (2 * style.paddingInside);
 }
 
 /*
