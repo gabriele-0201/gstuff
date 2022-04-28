@@ -6,7 +6,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <iostream>
 #include <string>
 #include <string.h>
 
@@ -21,11 +20,20 @@
 // Uncomment next line to have debug messages printed to stdout
 #define DEBUG
 
+// Debug macros
+#ifdef DEBUG
+	#define debug_print(...) do { printf(__VA_ARGS__); } while(0);
+#endif
+#ifndef DEBUG
+	#define debug_print(fmt, ...) do { } while(0);
+#endif
+
+#define USAGE "Usage: gstuff --myConfig \"first line\" \"second line\""
+
 
 // Function declarations
 void init();
 void close();
-unsigned long RGB(int r, int g, int b);
 XftFont* getFont();
 void calcWindowDimension(XftFont* font);
 void calcCornerPosition();
@@ -38,7 +46,7 @@ enum Pos {
     TOP_RIGHT,
     BOTTOM_LEFT,
     BOTTOM_RIGHT,
-    CENTER // TODO
+    CENTER
 };
 
 struct Style {
@@ -47,10 +55,10 @@ struct Style {
 	char* textColor=	strdup("#FFFFFF");
 
     int duration= 		2000; //milliseconds
-    int padding= 		4; //%
-    int paddingInside=	15; //px
-    int border= 		5; //px
-    int interlineSpace=	3; //px
+    int padding= 		4;	//%
+    int paddingInside=	15;	//px
+    int border= 		5;	//px
+    int interlineSpace=	3;	//px
 
     Pos position= 		Pos::BOTTOM_RIGHT;
 
@@ -80,7 +88,7 @@ struct StringSlice{
 Display *dis;
 int screen;
 Window win;
-GC gc;
+XftColor color;
 
 int main(int argc, char* argv[]) {
 
@@ -89,7 +97,7 @@ int main(int argc, char* argv[]) {
 	// argv[2] = "testo";
 
     if(argc <= 1) {
-        std::cout << "Not specified text" <<std::endl;
+        printf(USAGE);
         exit(0);
     }
 
@@ -101,7 +109,7 @@ int main(int argc, char* argv[]) {
     int start = 1;
     if(strlen(argv[1]) > 2 && argv[1][0] == '-' && argv[1][0] == '-') {
         if(argc == 2) {
-            std::cout << "Not specified text" <<std::endl;
+            printf(USAGE);
             exit(0);
         }
         style.nLines = argc - 2; 
@@ -121,9 +129,9 @@ int main(int argc, char* argv[]) {
 
     // Init the window
     init();
+
     // Event Handler
     XEvent event;
-
     XFlush(dis);
 
     // Manage Duration
@@ -155,13 +163,10 @@ void init() {
 
 	Visual *visual = DefaultVisual(dis, screen);
 	Colormap colormap = DefaultColormap(dis, screen);
-	//XftFont *font = XftFontOpenName(display, screen, "monospace:size=20");
 	XftFont *font = getFont();
-
 	
 	XSetWindowAttributes attributes;
 	attributes.override_redirect = True;
-	XftColor color;
 	XftColorAllocName(dis, visual, colormap, style.background, &color);
 	attributes.background_pixel = color.pixel;
 	XftColorAllocName(dis, visual, colormap, style.borderColor, &color);
@@ -174,7 +179,6 @@ void init() {
     calcCornerPosition();
 
     // Create the window
-    //window=XCreateSimpleWindow(display, DefaultRootWindow(display), corner.x, corner.y, style.winWidth, style.winHeight, style.border ,style.borderColor, style.background);
 	win = XCreateWindow(dis, RootWindow(dis, screen), corner.x, corner.y, style.winWidth, style.winHeight, style.border, DefaultDepth(dis, screen),
 						   CopyFromParent, visual, CWOverrideRedirect | CWBackPixel | CWBorderPixel, &attributes);
 
@@ -183,8 +187,6 @@ void init() {
 	
 	XSetStandardProperties(dis, win, "gsfuff", "", None, NULL, 0, NULL);
     XSelectInput(dis, win, ExposureMask | ButtonPressMask | KeyPressMask);
-    
-    gc=XCreateGC(dis, win, 0,0);
 
     // Set non managed window
     XSetWindowAttributes set_attr;
@@ -214,7 +216,7 @@ XftFont* getFont()
 
     XftFont *font = XftFontOpenName(dis, screen, style.fontName);
     if (! font) {
-		printf("Cannot load font");
+		fprintf(stderr, "Fatal: cannot load font");
 		exit(1);
     }
 
@@ -229,9 +231,7 @@ void calcWindowDimension(XftFont* font) {
 
     // Check each line to calc the max width
     for(int i = 0; i < style.nLines; ++i) {
-        // int currentWidth = XTextWidth(font, style.text[i], strlen(style.text[i])) + (2 * style.paddingInside);
-        // style.winWidth = style.winWidth < currentWidth ? currentWidth : style.winWidth;
-		int line_width = strlen(style.text[i]);
+        int line_width = strlen(style.text[i]);
         style.winWidth = style.winWidth < line_width ? line_width : style.winWidth;
 	}
 
@@ -241,10 +241,6 @@ void calcWindowDimension(XftFont* font) {
     // descent -> pixel down base line
     int heightCharaceter = font -> ascent + font -> descent;
     style.winHeight =  style.nLines * (heightCharaceter + style.interlineSpace) + (2 * style.paddingInside);
-
-    // XGlyphInfo info;
-    // What is this?
-	//XftTextExtentsUtf8(display, font, (FcChar8 *)string, eol, &info);
 
 }
 
@@ -311,15 +307,11 @@ void calcCornerPosition() {
  * Close the window
  * */
 void close() {
-    XFreeGC(dis, gc);
     XDestroyWindow(dis, win);
     XCloseDisplay(dis);
     exit(0);
 }
 
-unsigned long RGB(int r, int g, int b) {
-    return b + (g<<8) + (r<<16);
-}
 
 /* 
  * Get the correct slice that represents the key in
@@ -405,10 +397,8 @@ bool strSlice_equal(const char* line, const char* to_check, StringSlice* slice){
  * sets the "prop" integer to be the default value for that property
  * */
 void print_strol_errors(const char* propName, const char* startPtr, const char* endPtr){
-	#ifdef DEBUG
-		if(startPtr == endPtr || errno != 0)
-			printf("Invalid option for %s, loading default\n", propName);
-	#endif
+	if(startPtr == endPtr || errno != 0)
+		debug_print("Invalid option for %s, loading default\n", propName);
 }
 
 /* 
@@ -417,7 +407,7 @@ void print_strol_errors(const char* propName, const char* startPtr, const char* 
  * */
 bool loadConfig(const std::string& configName){
 
-	std::string configDir_path = getpwuid(getuid())->pw_dir +  std::string("/.config/gstuff/");
+	std::string configDir_path = getpwuid(getuid())->pw_dir + std::string("/.config/gstuff/");
 
 	std::string configFile_path = configDir_path + configName + ".conf";
 
@@ -427,9 +417,7 @@ bool loadConfig(const std::string& configName){
 
 	// Error opening the file
 	if(config_file == NULL){
-		#ifdef DEBUG
-			printf("Error opening config file, loading default");
-		#endif
+		debug_print("Error opening config file, loading default");
 		return false;
 	}
 
@@ -456,10 +444,7 @@ bool loadConfig(const std::string& configName){
 
 		// Error getting key or value
 		if(keySlice.end == 0 || valSlice.end == 0){
-			#ifdef DEBUG
-				printf("Line %d has an invalid syntax, skipping\n", lineindex);
-			#endif
-
+			debug_print("Line %d has an invalid syntax, skipping\n", lineindex);
 			continue;
 		}
 
@@ -486,9 +471,7 @@ bool loadConfig(const std::string& configName){
 				style.position = CENTER;
 
 			else{
-				#ifdef DEBUG
-					printf("Invalid option for position, skipping\n");
-				#endif
+				debug_print("Invalid option for position, skipping\n");
 				style.position = Pos::TOP_LEFT;
 			}
 		}
@@ -541,9 +524,7 @@ bool loadConfig(const std::string& configName){
 			strcpy(style.fontName, parsed.c_str());
 		}
 		else{
-			#ifdef DEBUG
-				printf("Option at line %d not recognised, skipping\n", lineindex);
-			#endif
+			debug_print("Option at line %d not recognised, skipping\n", lineindex);
 		}
 	}
 
