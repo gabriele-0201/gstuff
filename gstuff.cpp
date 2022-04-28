@@ -39,6 +39,13 @@ enum Pos {
     BOTTOM_RIGHT,
     CENTER
 };
+
+enum TextFormat {
+    LEFT,
+    TCENTER,
+    RIGHT
+};
+
 struct Style {
     char* background= 	strdup("#323200");
 	char* borderColor= 	strdup("#FFFF44");
@@ -51,6 +58,8 @@ struct Style {
     int interlineSpace=	3;	//px
 
     Pos position= 		Pos::BOTTOM_RIGHT;
+
+    TextFormat textFormat =TextFormat::LEFT;
 
     char* fontName= 	strdup("monospace");
     int fontSize= 		25;
@@ -83,7 +92,6 @@ Visual *visual;
 Colormap colormap;
 XftColor color;
 XftFont *font;
-
 
 // Function declarations
 void init();
@@ -198,8 +206,29 @@ void init() {
 	XftDraw *draw = XftDrawCreate(dis, win, visual, colormap);
 
     // Print the lines
+	XGlyphInfo info;
+    int startLine;
     for(int i = 0; i < style.nLines; ++i) {
-		XftDrawStringUtf8(draw, &color, font, style.paddingInside, style.paddingInside + font -> ascent + (i * (font -> descent + style.interlineSpace + font -> ascent)),
+        
+        // Calc start line
+        
+        switch(style.textFormat) {
+            case TextFormat::LEFT:
+
+                startLine = style.paddingInside;
+                break;
+            case TextFormat::TCENTER:
+		        XftTextExtentsUtf8(dis, font, (FcChar8 *)style.text[i], strlen(style.text[i]), &info);
+
+                startLine = (style.winWidth / 2) - (info.width / 2);
+                break;
+            case TextFormat::RIGHT:
+		        XftTextExtentsUtf8(dis, font, (FcChar8 *)style.text[i], strlen(style.text[i]), &info);
+
+                startLine = style.winWidth - style.paddingInside - info.width;
+                break;
+        }
+		XftDrawStringUtf8(draw, &color, font, startLine, style.paddingInside + font -> ascent + (i * (font -> descent + style.interlineSpace + font -> ascent)),
 								  (FcChar8 *)style.text[i], strlen(style.text[i]));
     }
 }
