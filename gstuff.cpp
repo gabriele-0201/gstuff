@@ -39,7 +39,6 @@ enum Pos {
     BOTTOM_RIGHT,
     CENTER
 };
-
 struct Style {
     char* background= 	strdup("#323200");
 	char* borderColor= 	strdup("#FFFF44");
@@ -165,7 +164,9 @@ int main(int argc, char* argv[]) {
 void init() {
 
     // TODO - select the right display to show the window, for now always the primary
-    dis=XOpenDisplay((char *)0);
+    if ( (dis=XOpenDisplay((char *)0)) == NULL )
+		fprintf(stderr, "Fatal: cannot open display");
+
     screen=DefaultScreen(dis);
 
 	visual = DefaultVisual(dis, screen);
@@ -255,7 +256,6 @@ void calcWindowDimension(XftFont* font) {
     // descent -> pixel down base line
     int heightCharaceter = font -> ascent + font -> descent;
     style.winHeight =  style.nLines * (heightCharaceter + style.interlineSpace) + (2 * style.paddingInside);
-
 }
 
 /*
@@ -315,7 +315,6 @@ void calcCornerPosition() {
             corner.y = ((height) / 2)  - ((style.winHeight - borderDim) / 2);
         break;
     }
-
 }
 
 /* 
