@@ -76,13 +76,13 @@ struct StringSlice{
 
 
 // Global variables
-Display *dis;
 int screen;
+Display *dis;
 Window win;
-XftColor color;
 XSetWindowAttributes windowAttributes;
 Visual *visual;
 Colormap colormap;
+XftColor color;
 XftFont *font;
 
 
@@ -131,6 +131,7 @@ int main(int argc, char* argv[]) {
         lines[i - start] = argv[i];
     style.text = lines;
 
+	// Load config file into style struct
     loadConfig(configName);
 
     // Init the window
@@ -238,13 +239,16 @@ void setWindowAttributes(){
  * */
 void calcWindowDimension(XftFont* font) {
 
+	int maxLineLenght = 0;
+
     // Check each line to calc the max width
     for(int i = 0; i < style.nLines; ++i) {
         int line_width = strlen(style.text[i]);
-        style.winWidth = style.winWidth < line_width ? line_width : style.winWidth;
+        maxLineLenght = maxLineLenght < line_width ? line_width : maxLineLenght;
 	}
 
-	style.winWidth *= style.fontSize;
+	style.winWidth = maxLineLenght * font->max_advance_width;
+	style.winWidth += 2*style.paddingInside;
 
     // ascent -> pixel up base line
     // descent -> pixel down base line
@@ -318,6 +322,7 @@ void calcCornerPosition() {
  * */
 void close() {
     XDestroyWindow(dis, win);
+	XftFontClose(dis, font);
     XCloseDisplay(dis);
     exit(0);
 }
