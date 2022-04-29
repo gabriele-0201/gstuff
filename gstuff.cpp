@@ -307,7 +307,6 @@ void calcCornerPosition() {
     XRRScreenResources *screens = XRRGetScreenResources(dis, DefaultRootWindow(dis));
     XRRCrtcInfo *crtc_info = NULL;
 	XRROutputInfo *out_info = NULL;
-	RROutput prim_display = XRRGetOutputPrimary(dis, DefaultRootWindow(dis));
 
     int width, height, n_screens=0;
     int winX, winY;
@@ -540,6 +539,22 @@ bool loadConfig(const std::string& configName){
 
 			else{
 				debug_print("Invalid option for textFormat, skipping\n");
+				style.textFormat = TextFormat::LEFT;
+			}
+		}
+		else if(strSlice_equal(line, "display", &keySlice)){
+
+			if(strSlice_equal(line, "PRIMARY", &valSlice))
+				style.textFormat = TextFormat::LEFT;
+			
+			else if(strSlice_equal(line, "CENTER", &valSlice))
+				style.textFormat = TextFormat::CENTER;
+			
+			else if(strSlice_equal(line, "RIGHT", &valSlice))
+				style.textFormat = TextFormat::RIGHT;
+
+			else{
+				debug_print("Invalid option for display, skipping\n");
 				style.textFormat = TextFormat::LEFT;
 			}
 		}
