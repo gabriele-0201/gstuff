@@ -140,10 +140,10 @@ Here are some example usecases:
 <!-- ROADMAP -->
 ## TODO/Roadmap
 
-- [ ] Refactor code
 - [ ] Add images in README
 - [ ] Add some examples
-- [ ] Add svg support
+- [ ] Add full UTF8 support
+- [ ] Maybe add svg support
 
 See the [open issues](https://github.com/gabriele-0201/gstuff/issues) for a full list of proposed features (and known issues).
 
