@@ -88,7 +88,6 @@ int screen;
 Display *dis;
 Window win;
 
-GC gc;
 RROutput prim_display;
 
 XSetWindowAttributes windowAttributes;
@@ -183,6 +182,8 @@ void init() {
 
 	visual = DefaultVisual(dis, screen);
 	colormap = DefaultColormap(dis, screen);
+
+	prim_display = XRRGetOutputPrimary(dis, DefaultRootWindow(dis));
 	
 	setFont();
 	
@@ -194,7 +195,7 @@ void init() {
 
 	win = XCreateWindow(dis, RootWindow(dis, screen), corner.x, corner.y, style.winWidth, style.winHeight, style.border, DefaultDepth(dis, screen),
 						   CopyFromParent, visual, CWOverrideRedirect | CWBackPixel | CWBorderPixel, &windowAttributes);
-
+                           
 	XSetStandardProperties(dis, win, "gsfuff", "", None, NULL, 0, NULL);
     XSelectInput(dis, win, ExposureMask | ButtonPressMask | KeyPressMask);
 
@@ -309,6 +310,7 @@ void calcCornerPosition() {
 	RROutput prim_display = XRRGetOutputPrimary(dis, DefaultRootWindow(dis));
 
     int width, height, n_screens=0;
+    int winX, winY;
 
     for(int i=0; i<screens->noutput; i++){
 
@@ -321,6 +323,8 @@ void calcCornerPosition() {
 			if(prim_display == screens->outputs[i]){
 			    width = crtc_info->width;
 			    height = crtc_info->height;
+                winX = crtc_info->x;
+                winY = crtc_info->y;
 			}
 
 			XRRFreeCrtcInfo(crtc_info);
@@ -350,6 +354,9 @@ void calcCornerPosition() {
             corner.y = ((height) / 2)  - ((style.winHeight - borderDim) / 2);
         break;
     }
+
+    corner.x += winX;
+    corner.y += winY;
 }
 
 /* 
