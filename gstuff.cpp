@@ -1,10 +1,11 @@
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/Xos.h>
+#include <X11/extensions/Xrandr.h>
+#include <X11/Xft/Xft.h>
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <iostream>
 #include <string>
 #include <string.h>
 
@@ -12,42 +13,61 @@
 #include <pwd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <errno.h>
 #include <dirent.h>
 
-
+// Uncomment next line to have debug messages printed to stdout
 #define DEBUG
 
+// Debug macros
+#ifdef DEBUG
+	#define debug_print(...) do { printf(__VA_ARGS__); } while(0);
+#endif
+#ifndef DEBUG
+	#define debug_print(fmt, ...) do { } while(0);
+#endif
 
-Display *dis;
-int screen;
-Window win;
-GC gc;
-unsigned long black, white, red, blue;
+#define USAGE "Usage: gstuff --myConfig \"first line\" \"second line\""
 
-enum Pos {
+
+// Enums and structs
+enum class Pos {
     TOP_LEFT,
     TOP_RIGHT,
     BOTTOM_LEFT,
-    BOTTOM_RIGHT
+    BOTTOM_RIGHT,
+    CENTER
+};
+
+enum class TextFormat {
+    LEFT,
+    CENTER,
+    RIGHT
 };
 
 struct Style {
-    int background, borderColor, textColor;
-    int duration; // milliseconds
-    int padding; // %
-    int border; // px
-    Pos position;
+    char* background= 	strdup("#323200");
+	char* borderColor= 	strdup("#FFFF44");
+	char* textColor=	strdup("#FFFFFF");
 
-    int paddingInside; // px
+    int duration= 		2000; //milliseconds
+    int padding= 		4;	//%
+    int paddingInside=	15;	//px
+    int border= 		5;	//px
+    int interlineSpace=	3;	//px
 
-    char* fontName;
-    int fontSize;
+    Pos position= 		Pos::BOTTOM_RIGHT;
 
-    int interlineSpace; // px
+    TextFormat textFormat= TextFormat::LEFT;
 
-    int winWidth; // Calc after
-    int winHeight; // Calc after
+    char* fontName= 	strdup("monospace");
+    int fontSize= 		25;
+
+	// The following entries will be calculated later
+	// depending on the input
+    int winWidth;
+    int winHeight;
     char** text;
     int nLines;
 
@@ -57,235 +77,349 @@ struct Point {
     int x, y;
 } corner;
 
-struct stringSlice{
+struct StringSlice{
 	int start;	// Inclusive
 	int end;	// Not inclusive
 };
 
+
+// Global variables
+int screen;
+Display *dis;
+Window win;
+
+RROutput prim_display;
+
+XSetWindowAttributes windowAttributes;
+Visual *visual;
+Colormap colormap;
+XftColor color;
+XftFont *font;
+
+// Function declarations
 void init();
 void close();
-unsigned long RGB(int r, int g, int b);
-XFontStruct* getFont();
-bool loadConfig(std::string configName);
-void loadDefaultConfig();
+void setFont();
+void calcWindowDimension(XftFont* font);
+void calcCornerPosition();
+bool loadConfig(const std::string& configName);
+void setWindowAttributes();
+
 
 int main(int argc, char* argv[]) {
 
-    if(argc == 1) {
-        std::cout << "Not specified text" <<std::endl;
+	// argc = 3;
+	// argv[1] = "--bella";
+	// argv[2] = "testo";
+
+    if(argc <= 1) {
+        printf(USAGE);
         exit(0);
     }
 
+    // Default config name, Maybe not necessary?
 	std::string configName = "config_template";
-
-    // Load Config
-    if(!loadConfig(configName)){
-        loadDefaultConfig();
-    }
-
-	std::cout << style.background << std::endl;
-
-    // Now I have to divide the first argument and all the others
     
-    // skip at least the namefile
+    // Skip at least the name of the executable
     style.nLines = argc - 1;
     int start = 1;
     if(strlen(argv[1]) > 2 && argv[1][0] == '-' && argv[1][0] == '-') {
         if(argc == 2) {
-            std::cout << "Not specified text" <<std::endl;
+            printf(USAGE);
             exit(0);
         }
         style.nLines = argc - 2; 
         start = 2;
+
+        // Get the passed configName, remove the first two characters
+        configName = std::string(argv[1]).substr(2);
     }
-        //std::cout << argv[0] << " " <<argv[1] <<std::endl;
     
     // create a new array of char* with only the lines
     char* lines[style.nLines];
     for(int i = start; i < argc; ++i) 
         lines[i - start] = argv[i];
-
     style.text = lines;
 
-    init();
-    XEvent event;
+	// Load config file into style struct
+    loadConfig(configName);
 
-    while (1)
-    {
-        XNextEvent(dis, &event);
+    // Init the window
+    init();
+
+    // Event Handler
+    XEvent event;
+    XFlush(dis);
+
+    // Manage Duration
+    struct timeval currentTime;
+    struct timeval initTime;
+    gettimeofday(&initTime, NULL);
+    long microDur = style.duration * 1000, passed;
+
+    do {
+        usleep(100000); // 100 ms
+        gettimeofday(&currentTime, NULL);
+        passed = (long)((currentTime.tv_sec - initTime.tv_sec) * 1000000 + currentTime.tv_usec - initTime.tv_usec);
+    
+        while(XPending(dis))
+            XNextEvent(dis, &event);
+
         if(event.type==ButtonPress) 
             close();
-    }
+    } while(passed < microDur);
     
     return 0;
 }
 
 void init() {
 
-    dis=XOpenDisplay((char *)0);
+    // TODO - select the right display to show the window, for now always the primary
+    if ( (dis=XOpenDisplay((char *)0)) == NULL )
+		fprintf(stderr, "Fatal: cannot open display");
+
     screen=DefaultScreen(dis);
+
+	visual = DefaultVisual(dis, screen);
+	colormap = DefaultColormap(dis, screen);
+
+	prim_display = XRRGetOutputPrimary(dis, DefaultRootWindow(dis));
+	
+	setFont();
+	
+	setWindowAttributes();
+
+    calcWindowDimension(font);
     
-    black=BlackPixel(dis, screen);
-    white=WhitePixel(dis, screen);
-    red=RGB(255,0,0);
-    blue=(0,0,255);
+    calcCornerPosition();
 
-    // Load font and calc size window
-    XFontStruct* font = getFont();
-
-    for(int i = 0; i < style.nLines; ++i) {
-        int currentWidth = XTextWidth(font, style.text[i], strlen(style.text[i])) + (2 * style.paddingInside);
-        style.winWidth = style.winWidth < currentWidth ? currentWidth : style.winWidth;
-    }
-
-    // ascent -> pixel up base line
-    // descent -> pixel down base line
-    int heightCharaceter = font -> ascent + font -> descent;
-    style.winHeight =  style.nLines * (heightCharaceter + style.interlineSpace) + (2 * style.paddingInside);
-    
-    // calc corner near angle
-    Screen*  s = DefaultScreenOfDisplay(dis);
-    corner.x = ((s -> width) * style.padding) / 100; // x : width = padding : 100
-    corner.y = ((s -> height) * style.padding) / 100;
-
-    switch(style.position) {
-        case Pos::TOP_LEFT: // default
-            break;
-        case Pos::TOP_RIGHT:
-            corner.x = (s -> width) - style.winWidth - corner.x;
-            break;
-        case Pos::BOTTOM_LEFT:
-            corner.y = (s -> height) - style.winHeight - corner.y;
-            break;
-        case Pos::BOTTOM_RIGHT:
-            corner.x = (s -> width) - style.winWidth - corner.x;
-            corner.y = (s -> height) - style.winHeight - corner.y;
-            break;
-    }
-
-    // Create the window
-    win=XCreateSimpleWindow(dis, DefaultRootWindow(dis), corner.x, corner.y, style.winWidth, style.winHeight, style.border ,style.borderColor, style.background);
-    
-    XSetStandardProperties(dis, win, "gsfuff", "", None, NULL, 0, NULL);
+	win = XCreateWindow(dis, RootWindow(dis, screen), corner.x, corner.y, style.winWidth, style.winHeight, style.border, DefaultDepth(dis, screen),
+						   CopyFromParent, visual, CWOverrideRedirect | CWBackPixel | CWBorderPixel, &windowAttributes);
+                           
+	XSetStandardProperties(dis, win, "gsfuff", "", None, NULL, 0, NULL);
     XSelectInput(dis, win, ExposureMask | ButtonPressMask | KeyPressMask);
-    
-    gc=XCreateGC(dis, win, 0,0);
-    
-    XSetBackground(dis,gc,white);
-    XSetForeground(dis,gc,black);
 
-    // Set non managed window
-    XSetWindowAttributes set_attr;
-    set_attr.override_redirect = True;
-    XChangeWindowAttributes(dis, win, CWOverrideRedirect, &set_attr);
+    XChangeWindowAttributes(dis, win, CWOverrideRedirect, &windowAttributes);
     
     // Map the window on screen
     XMapWindow(dis, win);
     
-    // on top
+    // Display the window on top of any other
     XClearWindow(dis, win);
     XMapRaised(dis, win);
-    
-    // Text on the window
-    XSetFont (dis, gc, font->fid);
-    XSetForeground(dis,gc,style.textColor);
 
+	XftDraw *draw = XftDrawCreate(dis, win, visual, colormap);
+
+    // Print the lines
+	XGlyphInfo info;
+    int startLine;
     for(int i = 0; i < style.nLines; ++i) {
-        XDrawString(dis, win, gc, style.paddingInside, style.paddingInside + font -> ascent + (i * (font -> descent + style.interlineSpace + font -> ascent)) , style.text[i], strlen(style.text[i]));
-    }
+        
+        // Calc start line
+        
+        switch(style.textFormat) {
+            case TextFormat::LEFT:
 
+                startLine = style.paddingInside;
+                break;
+            case TextFormat::CENTER:
+		        XftTextExtentsUtf8(dis, font, (FcChar8 *)style.text[i], strlen(style.text[i]), &info);
+
+                startLine = (style.winWidth / 2) - (info.width / 2);
+                break;
+            case TextFormat::RIGHT:
+		        XftTextExtentsUtf8(dis, font, (FcChar8 *)style.text[i], strlen(style.text[i]), &info);
+
+                startLine = style.winWidth - style.paddingInside - info.width;
+                break;
+        }
+		XftDrawStringUtf8(draw, &color, font, startLine, style.paddingInside + font -> ascent + (i * (font -> descent + style.interlineSpace + font -> ascent)),
+								  (FcChar8 *)style.text[i], strlen(style.text[i]));
+    }
 }
 
-/* Set up the text font. */
-XFontStruct* getFont()
+/* 
+ * Set up the text font
+ * */
+void setFont()
 {
-    //const char * fontname = "-*-roboto condensed-medium-r-normal--0-0-0-0-p-0-adobe-standard";
-    char fontname[255] = "-*-";
-    //strncat("-*-", style.fontName, "-medium-r-normal--0-", sprintf("" ,style.fontSize * 10) ,"-0-0-p-0-iso10646-1");
-    strcat(fontname, style.fontName);
-    strcat(fontname, "-medium-r-normal--0-");
-    // enough?
-    char converted[10];
-    sprintf(converted, "%d", style.fontSize * 10);
-    strcat(fontname, converted);
-    strcat(fontname,"-0-0-p-0-iso10646-1");
+	const std::string fontAndSize = style.fontName + std::string(":size=") + std::to_string(style.fontSize);
 
-    XFontStruct * font = XLoadQueryFont (dis, fontname);
-    /* If the font could not be loaded, revert to the "fixed" font. */
+	font = XftFontOpenName(dis, screen, fontAndSize.c_str());
     if (! font) {
-        fprintf (stderr, "unable to load font %s: using fixed\n", fontname);
-        font = XLoadQueryFont (dis, "fixed");
+		// TODO: set default font
+		fprintf(stderr, "Fatal: cannot load font");
+		exit(1);
     }
-
-    return font;
 }
 
+/* 
+ * Sets the window attributes
+ * */
+void setWindowAttributes(){
+    // Non managed window
+	windowAttributes.override_redirect = True;
+
+	// Allocate colors
+	XftColorAllocName(dis, visual, colormap, style.background, &color);
+	windowAttributes.background_pixel = color.pixel;
+
+	XftColorAllocName(dis, visual, colormap, style.borderColor, &color);
+	windowAttributes.border_pixel = color.pixel;
+
+	XftColorAllocName(dis, visual, colormap, style.textColor, &color);
+}
+
+/*
+ * Dependig on the text and the font size calc the dimension of the window
+ * Always the minimum possible
+ * */
+void calcWindowDimension(XftFont* font) {
+
+	int linePixelLenght = 0;
+	XGlyphInfo info;
+
+    // Check each line to calc the max width
+    for(int i = 0; i < style.nLines; ++i) {
+		XftTextExtentsUtf8(dis, font, (FcChar8 *)style.text[i], strlen(style.text[i]), &info);
+        linePixelLenght = linePixelLenght < info.width ? info.width : linePixelLenght;
+	}
+
+	style.winWidth = linePixelLenght;
+	style.winWidth += 2*style.paddingInside;
+
+    // ascent -> pixel up base line
+    // descent -> pixel down base line
+    int heightCharaceter = font -> ascent + font -> descent;
+    style.winHeight =  style.nLines * (heightCharaceter + style.interlineSpace) - style.interlineSpace + (2 * style.paddingInside);
+}
+
+/*
+ * Based on the position specified and the window dimension calculate the position 
+ * of the corner to display the window in the right place
+ * */
+void calcCornerPosition() {
+
+    // calc top left corner position
+    int borderDim = style.border * 2;
+
+    // get the dim of the primary display
+    XRRScreenResources *screens = XRRGetScreenResources(dis, DefaultRootWindow(dis));
+    XRRCrtcInfo *crtc_info = NULL;
+	XRROutputInfo *out_info = NULL;
+
+    int width, height, n_screens=0;
+    int winX, winY;
+
+    for(int i=0; i<screens->noutput; i++){
+
+		out_info = XRRGetOutputInfo(dis, screens, screens->outputs[i]);
+
+		if(out_info->connection == RR_Connected){
+			
+			crtc_info = XRRGetCrtcInfo(dis, screens, screens->crtcs[n_screens++]);
+
+			if(prim_display == screens->outputs[i]){
+			    width = crtc_info->width;
+			    height = crtc_info->height;
+                winX = crtc_info->x;
+                winY = crtc_info->y;
+			}
+
+			XRRFreeCrtcInfo(crtc_info);
+		}
+	}
+    XRRFreeScreenResources(screens);
+
+    corner.x = (width * style.padding) / 100; // x : width = padding : 100
+    corner.y = (height * style.padding) / 100;
+
+    switch(style.position) {
+        case Pos::TOP_LEFT: 
+			// default
+        break;
+        case Pos::TOP_RIGHT:
+            corner.x = (width) - style.winWidth - borderDim - corner.x;
+        break;
+        case Pos::BOTTOM_LEFT:
+            corner.y = (height) - style.winHeight - borderDim - corner.y;
+        break;
+        case Pos::BOTTOM_RIGHT:
+            corner.x = (width) - style.winWidth - borderDim - corner.x;
+            corner.y = (height) - style.winHeight - borderDim - corner.y;
+        break;
+        case Pos::CENTER:
+            corner.x = ((width) / 2) - ((style.winWidth - borderDim) / 2) ;
+            corner.y = ((height) / 2)  - ((style.winHeight - borderDim) / 2);
+        break;
+    }
+
+    corner.x += winX;
+    corner.y += winY;
+}
+
+/* 
+ * Close the window
+ * */
 void close() {
-    XFreeGC(dis, gc);
     XDestroyWindow(dis, win);
+	XftFontClose(dis, font);
     XCloseDisplay(dis);
     exit(0);
 }
 
-unsigned long RGB(int r, int g, int b) {
-    return b + (g<<8) + (r<<16);
-}
 
-void loadDefaultConfig(){
-	style.background = RGB(0, 0, 0);
-    style.borderColor = RGB(255, 0, 0);
-    style.textColor = RGB(255, 255, 255);
-    style.duration = 1000;
-    style.padding = 4;
-    style.border = 5;
-    style.position = Pos::TOP_LEFT;
-    style.paddingInside = 30;
-    style.fontSize = 20;
-    style.fontName = "roboto condensed";
-    style.interlineSpace = 3;
-}
-
-
-void getConfigKeySlice(const char* s, stringSlice* keySlice){
+/* 
+ * Get the correct slice that represents the key in
+ * the config file's line.
+ * The separator is the charachter ':'.
+ * It sets keySlice.end to 0 if it does not find a valid key
+ * */
+void getConfigKeySlice(const char* config_line, StringSlice* keySlice){
 	
 	int index=0;
 
 	// Find first valid charachter of line
-	for(; index<strlen(s); index++){
-		if(s[index] != ' '){
+	for(; index<strlen(config_line); index++){
+		if(config_line[index] != ' '){
 			keySlice->start = index;
 			break;
 		}
 	}	
 
 	// Scan the rest of the line to find the separator
-	for(; index<strlen(s); index++){
-		if(s[index] == ':'){
+	for(; index<strlen(config_line); index++){
+		if(config_line[index] == ':'){
 			keySlice->end = index;
 			return;
 		}
 	}
 
 	// Ureachable if there is all we want
-	keySlice->end 	= 0;
+	keySlice->end = 0;
 }
 
-
-void getConfigValueSlice(const char* s, stringSlice* valSlice, int startIndex){
+/* 
+ * Get the correct slice that represents the value in
+ * the config file's line.
+ * The separator is the charachter ':'.
+ * It sets keySlice.end to 0 if it does not find a valid key
+ * */
+void getConfigValueSlice(const char* config_line, StringSlice* valSlice, int startIndex){
 	
 	int index=startIndex;
 
 	// Find first valid charachter of line
-	for(; index<strlen(s); index++){
-		if(s[index] != ' ' && s[index] != ':' && s[index] != '	'){
+	for(; index<strlen(config_line); index++){
+		if(config_line[index] != ' ' && config_line[index] != ':' && config_line[index] != '	'){
 			valSlice->start = index;
 			break;
 		}
 	}	
 
-	// Scan the rest of the line to find the separator
-	for(; index<=strlen(s); index++){
-		if(s[index] == ' ' || s[index] == '\n' || s[index] == '\r' || s[index] == 0){
+	// Scan the rest of the line to find the end
+	for(; index<=strlen(config_line); index++){
+		if(config_line[index] == ' ' || config_line[index] == '\n' || config_line[index] == '\r' || config_line[index] == 0x0){
 			valSlice->end = index;
 			return;
 		}
@@ -295,96 +429,56 @@ void getConfigValueSlice(const char* s, stringSlice* valSlice, int startIndex){
 	valSlice->end 	= 0;
 }
 
+/* 
+ * Cheks if the "to_check" string is equal to the slice of the "line" string
+ * that starts in slice.start and ends in slice.end (end not inclusive)
+ * */
+bool strSlice_equal(const char* line, const char* to_check, StringSlice* slice){
 
-bool strSlice_equal(const char* line, const char* s, stringSlice* slice){
-
-	if(slice->end - slice->start != strlen(s))
+	if(slice->end - slice->start != strlen(to_check))
 		return false;
 
 	int i_s = 0;
 	for(int i_line=slice->start; i_line<slice->end; i_line++){
-		if(line[i_line] != s[i_s++])
+		if(line[i_line] != to_check[i_s++])
 			return false;
 	}
-
-	return true;
-
-}
-
-
-// Returns true if succeded
-bool createDir(const char* base_path, const char* dirname){
-
-	DIR *base_dir;
-	if((base_dir = opendir(base_path)) == NULL){
-		// directory in base_path does not exist
-		#ifdef DEBUG
-			printf("%s does not exist, loading default config", base_path);
-		#endif
-		return false;
-	}
-
-	int dfd = dirfd(base_dir);
-	errno = 0;
-	int ret = mkdirat(dfd, dirname, S_IRWXU);
-	if (ret == -1) {
-		switch (errno) {
-			case EACCES :
-				#ifdef DEBUG
-					printf("Failed creating %s directory, loading default config", dirname);
-				#endif
-				return false;
-			case EEXIST:
-				// direcory already exists
-			break;
-			case ENAMETOOLONG:
-				printf("Pathname is too long, loading default config");
-				return false;
-			default:
-				#ifdef DEBUG
-					perror("mkdir");
-				#endif
-				return false;
-		}
-
-	}
-	closedir(base_dir);
-
 	return true;
 }
 
-// Returns true if succeded
-bool loadConfig(std::string configName){
+/* 
+ * Cheks the status of the "conversion to int" (done by "strtol") operation and if there are some errors
+ * sets the "prop" integer to be the default value for that property
+ * */
+void print_strol_errors(const char* propName, const char* startPtr, const char* endPtr){
+	if(startPtr == endPtr || errno != 0)
+		debug_print("Invalid option for %s, loading default\n", propName);
+}
 
-	configName += ".conf";
+/* 
+ * Loads the config placed in $HOME/.config/<configname>.conf
+ * Returns true if succeded
+ * */
+bool loadConfig(const std::string& configName){
 
-	// Get .config/ directory path of user that is launching the script
-	std::string configDir_path = getpwuid(getuid())->pw_dir +  std::string("/.config");
-
-	if(!createDir(configDir_path.c_str(), "gstuff"))
-		return false;
-	
-	configDir_path += "/gstuff/";
-
-	std::string configFile_path = configDir_path + configName;
+	std::string configDir_path = getpwuid(getuid())->pw_dir + std::string("/.config/gstuff/");
+	std::string configFile_path = configDir_path + configName + ".conf";
 
 	FILE *config_file;
-
 	config_file = fopen(configFile_path.c_str(), "r");
 
+	// Error opening the file
 	if(config_file == NULL){
-		#ifdef DEBUG
-			printf("Error opening config file, loading default");
-		#endif
+		debug_print("Error opening config file, loading default");
 		return false;
 	}
 
+	// Read file lines one by one and parse them
 	char* line = NULL;
 	size_t len = 0;
 	ssize_t linelenght;
 	int lineindex = 0;
 	
-
 	while( (linelenght = getline(&line, &len, config_file)) != -1){
 
 		lineindex++;
@@ -393,79 +487,128 @@ bool loadConfig(std::string configName){
 		if(strcmp(line, "\n") == 0 || strlen(line) == 0)
 			continue;
 
-		stringSlice keySlice;
+		// Get the slices for key and value
+		StringSlice keySlice;
 		getConfigKeySlice(line, &keySlice);
-
-		stringSlice valSlice;
+		StringSlice valSlice;
 		getConfigValueSlice(line, &valSlice, keySlice.end);
 
+		// Error getting key or value
 		if(keySlice.end == 0 || valSlice.end == 0){
-			#ifdef DEBUG
-				printf("Line %d has an invalid syntax, skipping\n", lineindex);
-			#endif
-
+			debug_print("Line %d has an invalid syntax, skipping\n", lineindex);
 			continue;
 		}
 
+		// These variables are used for error handling
+		char* endptr = NULL;
+		errno = 0;
+
+		// Parse the line and set the values accordingly
 		if(strSlice_equal(line, "position", &keySlice)){
 
 			if(strSlice_equal(line, "TOP_LEFT", &valSlice))
-				style.position = TOP_LEFT;
+				style.position = Pos::TOP_LEFT;
 			
 			else if(strSlice_equal(line, "TOP_RIGHT", &valSlice))
-				style.position = TOP_RIGHT;
+				style.position = Pos::TOP_RIGHT;
 			
 			else if(strSlice_equal(line, "BOTTOM_LEFT", &valSlice))
-				style.position = BOTTOM_LEFT;
+				style.position = Pos::BOTTOM_LEFT;
 			
 			else if(strSlice_equal(line, "BOTTOM_RIGHT", &valSlice))
-				style.position = BOTTOM_RIGHT;
+				style.position = Pos::BOTTOM_RIGHT;
+
+			else if(strSlice_equal(line, "CENTER", &valSlice))
+				style.position = Pos::CENTER;
 
 			else{
-				#ifdef DEBUG
-					printf("Invalid option for position, skipping\n");
-				#endif
+				debug_print("Invalid option for position, skipping\n");
+				style.position = Pos::TOP_LEFT;
 			}
 		}
+		else if(strSlice_equal(line, "textFormat", &keySlice)){
 
-		else if(strSlice_equal(line, "background", &keySlice))
-			style.background = strtol(line + valSlice.start + 1, NULL, 16);
+			if(strSlice_equal(line, "LEFT", &valSlice))
+				style.textFormat = TextFormat::LEFT;
+			
+			else if(strSlice_equal(line, "CENTER", &valSlice))
+				style.textFormat = TextFormat::CENTER;
+			
+			else if(strSlice_equal(line, "RIGHT", &valSlice))
+				style.textFormat = TextFormat::RIGHT;
 
-		else if(strSlice_equal(line, "borderColor", &keySlice))
-			style.borderColor = strtol(line + valSlice.start + 1, NULL, 16);
-		
-		else if(strSlice_equal(line, "textColor", &keySlice))
-			style.textColor = strtol(line + valSlice.start + 1, NULL, 16);
-		
-		else if(strSlice_equal(line, "duration", &keySlice))
-			style.duration = strtol(line + valSlice.start, NULL, 0);
-		
-		else if(strSlice_equal(line, "padding", &keySlice))
-			style.padding = strtol(line + valSlice.start, NULL, 0);
-		
-		else if(strSlice_equal(line, "paddingInside", &keySlice))
-			style.paddingInside = strtol(line + valSlice.start, NULL, 0);
-		
-		else if(strSlice_equal(line, "border", &keySlice))
-			style.border = strtol(line + valSlice.start, NULL, 0);
+			else{
+				debug_print("Invalid option for textFormat, skipping\n");
+				style.textFormat = TextFormat::LEFT;
+			}
+		}
+		else if(strSlice_equal(line, "display", &keySlice)){
 
-		else if(strSlice_equal(line, "interlineSpace", &keySlice))
-			style.interlineSpace = strtol(line + valSlice.start, NULL, 0);
-		
-		else if(strSlice_equal(line, "fontSize", &keySlice))
-			style.fontSize = strtol(line + valSlice.start, NULL, 0);
+			if(strSlice_equal(line, "PRIMARY", &valSlice))
+				style.textFormat = TextFormat::LEFT;
+			
+			else if(strSlice_equal(line, "CENTER", &valSlice))
+				style.textFormat = TextFormat::CENTER;
+			
+			else if(strSlice_equal(line, "RIGHT", &valSlice))
+				style.textFormat = TextFormat::RIGHT;
 
+			else{
+				debug_print("Invalid option for display, skipping\n");
+				style.textFormat = TextFormat::LEFT;
+			}
+		}
+		else if(strSlice_equal(line, "duration", &keySlice)){
+			style.duration = strtol(line + valSlice.start, &endptr, 0);
+			print_strol_errors("duration", line + valSlice.start, endptr);
+		}
+		else if(strSlice_equal(line, "padding", &keySlice)){
+			style.padding = strtol(line + valSlice.start, &endptr, 0);
+			print_strol_errors("padding", line + valSlice.start, endptr);
+		}
+		else if(strSlice_equal(line, "paddingInside", &keySlice)){
+			style.paddingInside = strtol(line + valSlice.start, &endptr, 0);
+			print_strol_errors("paddingInside", line + valSlice.start, endptr);
+		}
+		else if(strSlice_equal(line, "border", &keySlice)){
+			style.border = strtol(line + valSlice.start, &endptr, 0);
+			print_strol_errors("border", line + valSlice.start, endptr);
+		}
+		else if(strSlice_equal(line, "interlineSpace", &keySlice)){
+			style.interlineSpace = strtol(line + valSlice.start, &endptr, 0);
+			print_strol_errors("interlineSpace", line + valSlice.start, endptr);
+		}
+		else if(strSlice_equal(line, "fontSize", &keySlice)){
+			style.fontSize = strtol(line + valSlice.start, &endptr, 0);
+			print_strol_errors("fontSize", line + valSlice.start, endptr);
+		}
 		else if(strSlice_equal(line, "fontName", &keySlice)){
-			style.fontName = (char*)malloc(sizeof(char) * (valSlice.end - valSlice.start + 1));
-			strcpy(style.fontName, line + valSlice.start);
+			std::string parsed{line + valSlice.start};
+			if(parsed[parsed.length()-1] == '\n')
+				parsed.pop_back();
+			strcpy(style.fontName, parsed.c_str());
 		}
-
+		else if(strSlice_equal(line, "background", &keySlice)){
+			std::string parsed{line + valSlice.start};
+			if(parsed[parsed.length()-1] == '\n')
+				parsed.pop_back();
+			strcpy(style.background, parsed.c_str());
+		}
+		else if(strSlice_equal(line, "borderColor", &keySlice)){
+			std::string parsed{line + valSlice.start};
+			if(parsed[parsed.length()-1] == '\n')
+				parsed.pop_back();
+			strcpy(style.borderColor, parsed.c_str());
+		}
+		else if(strSlice_equal(line, "textColor", &keySlice)){
+			std::string parsed{line + valSlice.start};
+			if(parsed[parsed.length()-1] == '\n')
+				parsed.pop_back();
+			strcpy(style.textColor, parsed.c_str());
+		}
 		else{
-			#ifdef DEBUG
-				printf("Option at line %d not recognised, skipping\n", lineindex);
-			#endif
+			debug_print("Option at line %d not recognised, skipping\n", lineindex);
 		}
-
 	}
 
 	fclose(config_file);
