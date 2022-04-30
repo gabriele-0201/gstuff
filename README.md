@@ -126,6 +126,7 @@ Or you can specify a configuration following this steps:
   ```sh
   gstuff --<myConfig> "your text here" "this text goes to the 2nd line" "this text goes to the 3rd line"
   ```
+- See 
 
 Here are some example usecases:
 - Getting status of your system with a keybinding
