@@ -144,7 +144,7 @@ Here are some example usecases:
 - [ ] Add images in README
 - [ ] Add some examples
 - [ ] Add full UTF8 support
-- [ ] Maybe add svg support
+- [ ] Implement monitor selection
 
 See the [open issues](https://github.com/gabriele-0201/gstuff/issues) for a full list of proposed features (and known issues).
 
