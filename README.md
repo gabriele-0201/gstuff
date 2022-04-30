@@ -126,7 +126,7 @@ Or you can specify a configuration following this steps:
   ```sh
   gstuff --<myConfig> "your text here" "this text goes to the 2nd line" "this text goes to the 3rd line"
   ```
-- See 
+- See the [config file format guide](https://github.com/gabriele-0201/gstuff/blob/main/docs/config_format.md) to customize your gstuff banner and have fun!
 
 Here are some example usecases:
 - Getting status of your system with a keybinding
